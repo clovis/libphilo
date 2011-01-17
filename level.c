@@ -57,7 +57,7 @@ Z32 process_input ( Search s, FILE *f )
     }
   }
   else {
-    s_log ( s->debug, L_INFO, "%d batches created", (Z8 *)s->depth ); 
+    s_logf ( s->debug, L_INFO, "%d batches created", s->depth ); 
     s->batches->map = s->map;
     return 0; 
   }
@@ -78,16 +78,16 @@ Z32 create_batches ( Search s, FILE *f )
   s_log ( s->debug, L_INFO, NULL, "done." );
 
   while ( (b_status = process_batch ( s, f, b_counter++ )) != BATCH_PROCESSING_ERROR ) {
-    s_log ( s->debug, L_INFO, "process_batch returned %d", (Z8 *)b_status );
+    s_logf ( s->debug, L_INFO, "process_batch returned %d", b_status );
     /* exit status BATCH_EMPTY means that there's nothing to search for; */
     /* unless this is "BOOLEAN NOT" level -- then it's ok. */
     if ( b_status & BATCH_EMPTY ) {
       if ( !s->batches[b_counter-1].not_op  ) {
-	return BATCH_EMPTY;
+		return BATCH_EMPTY;
       }
       b_counter--;
       for ( i = b_counter; i < s->depth - 1; i++ ) {
-	s->batches[i].not_op = s->batches[i+1].not_op;
+		s->batches[i].not_op = s->batches[i+1].not_op;
       }
     }
     if ( b_status & BATCH_PROCESSED_LAST ) {
@@ -97,7 +97,7 @@ Z32 create_batches ( Search s, FILE *f )
     init_batchObject ( b + b_counter, b_counter );
     s_log ( s->debug, L_INFO, NULL, "done." );
   }
-  s_log ( s->debug, L_INFO, "last process_batch returned %d", (Z8 *)b_status );
+  s_logf ( s->debug, L_INFO, "last process_batch returned %d", b_status );
   if ( b_status == BATCH_PROCESSING_ERROR ) {
     return BATCH_PROCESSING_ERROR; 
   }
@@ -139,13 +139,13 @@ Z32 process_batch ( Search s, FILE *f, N32 bn )
 
   while ( fgets(  (char *)word, W_LENGTH_MAX, f)  && strcmp ( (char *)word, "\n") ) {
     word[strlen( (char *)word)-1] = '\000'; /* chop */
-    s_log ( s->debug, L_INFO, "read word %s", word ); 
+    s_logf ( s->debug, L_INFO, "read word %s", word ); 
     if ( b->howmany == b->malloced ) {
       b->w_list = (Word) realloc ( b->w_list, sizeof(Word_) * ( b->malloced + INITWORDS ) ); 
       b->malloced += INITWORDS; 
     }
     if ( n = init_wordObject (s, word, b->w_list + b->howmany, &n_blocks )) { //we do an initial lookup to get word frequency.
-      s_log ( s->debug, L_INFO, "(word object initialized with %d occurencees)", (Z8 *)n ); 
+      s_logf ( s->debug, L_INFO, "(word object initialized with %d occurencees)", n ); 
       b->total += n;
       b->howmany++; 
       b->blockmap_l += n_blocks;
@@ -158,7 +158,7 @@ Z32 process_batch ( Search s, FILE *f, N32 bn )
   if ( s->debug ) {
     sprintf ((char *)lmsg, "read %d words, %d/%d occurences/blocks total", b->howmany, b->total, b->blockmap_l); 
     s_log ( s->debug, L_INFO, NULL, lmsg );
-    s_log ( s->debug, L_INFO, NULL, (Z8 *)"attempting to build blockmap..." );
+    s_log ( s->debug, L_INFO, NULL, "attempting to build blockmap..." );
   }
   if ( build_blockMap ( s, bn ) ) {
     s_log ( s->debug, L_ERROR, NULL, "error building blockmap" );
@@ -204,7 +204,7 @@ void rearrange_batches ( Search s ) // positions NOT_OP terms correctly.  tricky
   if ( s->batches->not_op ) {
     s_log ( s->debug, L_INFO, NULL, "attempting to rearrange batches;" );
     while ( s->batches[i].not_op ) {
-      s_log ( s->debug, L_INFO, "batch number %d has NOT_OP set;", (Z8 *)i ); 
+      s_logf ( s->debug, L_INFO, "batch number %d has NOT_OP set;", i ); 
       i++; 
     }
     b = (Batch) malloc ( sizeof (Batch_) ); 
@@ -215,7 +215,7 @@ void rearrange_batches ( Search s ) // positions NOT_OP terms correctly.  tricky
     /*s->batches[i] = *b;*/
     for ( i = 0; i < s->depth; i++ ) {
       s->hit_def->levels[i].n_real = s->batches[i].number;
-      s_log ( s->debug, L_INFO, "batch: word number %d", (Z8 *)s->batches[i].number );
+      s_logf ( s->debug, L_INFO, "batch: word number %d", s->batches[i].number );
     }
   }
   else {

@@ -39,8 +39,8 @@ Z32 load_blockmap ( blockMap blockmap, Word w, Search s, Z32 bn )
 
   n = w->type ? w->blkcount : w->freq; 
 
-  s_log ( s->debug, L_INFO, "word of type %d;", (Z8 *)w->type ); 
-  s_log ( s->debug, L_INFO, "%d virtual blocks;", (Z8 *)n ); 
+  s_logf ( s->debug, L_INFO, "word of type %d;", w->type ); 
+  s_logf ( s->debug, L_INFO, "%d virtual blocks;", n ); 
 
   while ( c < n )
     {
@@ -85,7 +85,7 @@ int blockmap_sort_func ( const void *v1, const void *v2 )
 
       bn = s->bn;
       /*
-      s_log ( s->debug, L_INFO, "this is search level %d;\n", (Z8 *)bn ); 
+      s_logf ( s->debug, L_INFO, "this is search level %d;\n", bn ); 
        */
 
       if ( b1->w->n_cached && ( b1->w->blk_cached == b1->n ) )
@@ -105,8 +105,8 @@ int blockmap_sort_func ( const void *v1, const void *v2 )
       /*
       x += b1->n; 
       y += b2->n; 
-      s_log ( s->debug, L_INFO, "block object 1: b1->n = %d", (Z8 *)b1->n );
-      s_log ( s->debug, L_INFO, "block object 2: b2->n = %d", (Z8 *)b2->n );
+      s_logf ( s->debug, L_INFO, "block object 1: b1->n = %d", b1->n );
+      s_logf ( s->debug, L_INFO, "block object 2: b2->n = %d", b2->n );
       */
       
       /*return s->hit_def->levels[bn].h2h_cmp_func ( x, y, s->hit_def, bn );*/
@@ -185,8 +185,8 @@ void blockmap_sort ( Search s, Z32 bn )
   N32    b_l = s->batches[bn].blockmap_l; 
   N32    b_c = s->batches[bn].blkmapctr;  
 
-  s_log (s->debug, L_INFO, "sorting blockmap; %d objects", (Z8 *)b_l);
-  s_log (s->debug, L_INFO, "sorting blockmap; counter=%d", (Z8 *)b_c);
+  s_logf (s->debug, L_INFO, "sorting blockmap; %d objects", b_l);
+  s_logf (s->debug, L_INFO, "sorting blockmap; counter=%d", b_c);
 
    
   blockmap_sort_func ( NULL, (const void *)s ); 
@@ -203,7 +203,7 @@ Z32 build_blockMap ( Search s, Z32 bn )
   b->blockmap = 
     (blockMap) malloc ( (b->blockmap_l + 1) * sizeof (blockMap_)); 
 
-  s_log (s->debug, L_INFO, "malloc-ed %d blockMap_ objects;", (Z8 *)b->blockmap_l + 1);
+  s_logf (s->debug, L_INFO, "malloc-ed %d blockMap_ objects;", b->blockmap_l + 1);
 
   if ( ! b->blockmap )
     return BLOCKMAP_MALLOC_ERROR;
@@ -214,7 +214,7 @@ Z32 build_blockMap ( Search s, Z32 bn )
   if ( c != b->blockmap_l )
     return BLOCKMAP_BUILD_ERROR; 
 
-  s_log ( s->debug, L_INFO, "loaded blockmap with %d blocks total", (Z8 *)c );
+  s_logf ( s->debug, L_INFO, "loaded blockmap with %d blocks total", c );
 
   if ( b->howmany > 1 )
     {

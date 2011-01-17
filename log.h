@@ -27,4 +27,13 @@
 
   extern void s_log (Z32, Z32, char *, Z8 *);
 
+  #define s_log(state,level,format,message) { \
+  if (state == level) \
+      fprintf (stderr, "%s\n", (char *)message); \
+  }
+  
+  #define s_logf(state,level,format,message) {  \
+  if (state == level) \
+  	fprintf (stderr, format,message); \
+  }
 #endif

@@ -28,13 +28,13 @@ N32 retreive_hits ( Search s, N level, Gmap map, Gmap res )
   N32  n = b->blockmap[b->blkmapctr].n; 
   Z32  status; 
 
-  s_log ( s->debug, L_INFO, "retreive: level %d,", (Z8 *)level ); 
-  s_log ( s->debug, L_INFO, "retreive: blockmap counter %d,", (Z8 *)b->blkmapctr ); 
-  s_log ( s->debug, L_INFO, "retreive: dir. number in the block object %d;", (Z8 *)n ); 
+  s_logf ( s->debug, L_INFO, "retreive: level %d,", level ); 
+  s_logf ( s->debug, L_INFO, "retreive: blockmap counter %d,", b->blkmapctr ); 
+  s_logf ( s->debug, L_INFO, "retreive: dir. number in the block object %d;", n ); 
 
   status = process_block_unit ( s, level, w, n, map, res );
 
-  s_log ( s->debug, L_INFO, "process_block_unit returned %d;", (Z8 *)status );
+  s_logf ( s->debug, L_INFO, "process_block_unit returned %d;", status );
 
   if ( status & RETR_BUMMER ) {
     return SEARCH_BUMMER_OCCURED;
@@ -69,7 +69,7 @@ Z32 process_block_unit ( Search s, N8 bn, Word w, N32 n, Gmap map, Gmap res )
   /* what kind of blockunit is it? */
   if ( type ) {
     /* a block of hits? */
-    s_log ( s->debug, L_INFO, "block unit processing: entry %d;", (Z8 *)n ); 
+    s_logf ( s->debug, L_INFO, "block unit processing: entry %d;", n ); 
     if ( s->batches[bn].not_op ) {
 	return process_hit_block_booleannot ( s, bn, w, n, map, res );
     }
@@ -92,21 +92,21 @@ Z32 process_hit_block ( Search s, N8 bn, Word w, N32 n, Gmap map, Gmap res )
   /* before we do anything else, we should check if we have cached hits
      stored in this block:*/
   if ( w->n_cached ) {
-    s_log ( s->debug, L_INFO, "found %d stored hits; processing.", (Z8 *)w->n_cached ); 
+    s_logf ( s->debug, L_INFO, "found %d stored hits; processing.", w->n_cached ); 
     /* this is not supposed to happen: 
        we should never get to another (next?) block while we still
        have indices cached from this one! */
     if ( w->blk_cached != n ) {
-      s_log ( s->debug, L_ERROR, "found cached hits from block %d,", (Z8 *)w->blk_cached ); 
-      s_log ( s->debug, L_ERROR, "while processing block %d.", (Z8 *)n ); 
+      s_logf ( s->debug, L_ERROR, "found cached hits from block %d,", w->blk_cached ); 
+      s_logf ( s->debug, L_ERROR, "while processing block %d.", n ); 
       return RETR_BUMMER;
     } 
     hits = retreive_cached_hits ( s, bn, w, n, map, &howmany ); 
   }
   else {
-    s_log ( s->debug, L_INFO, "retreiving hit block for entry %d;", (Z8 *)n ); 
+    s_logf ( s->debug, L_INFO, "retreiving hit block for entry %d;", n ); 
     hits = retreive_hit_block ( s, bn, w, n, map, &howmany ); 
-    s_log ( s->debug, L_INFO, "%d hits retreived;", (Z8 *)howmany ); 
+    s_logf ( s->debug, L_INFO, "%d hits retreived;", howmany ); 
   }
   if ( ! hits ) {
     s_log ( s->debug, L_INFO, NULL, "block does not contain any potential hits (completely below the lower map bounday); marking the block clean; returning."); 
@@ -119,7 +119,7 @@ Z32 process_hit_block ( Search s, N8 bn, Word w, N32 n, Gmap map, Gmap res )
   if ( map ) {
     s_log ( s->debug, L_INFO, NULL, "filtering the retreived hits against the search map;" ); 
     status = filternload_hits ( s, bn, w, n, map, hits, howmany, res ); 
-    s_log ( s->debug, L_INFO, "ATTENTION: filternload returned %d;", (Z8*)status ); 
+    s_logf ( s->debug, L_INFO, "ATTENTION: filternload returned %d;", status ); 
   }
   else {
     /* load the whole block on the result map! */
@@ -139,16 +139,16 @@ Gmap retreive_cached_hits ( Search s, N8 bn, Word w, N32 n, Gmap map, N32 *howma
 
   if ( map ) {
     map_pos = map->gm_c;
-    s_log ( s->debug, L_INFO, "retreiving cached; search map position: %d", (Z8 *)map->gm_c );      
+    s_logf ( s->debug, L_INFO, "retreiving cached; search map position: %d", map->gm_c );      
     map_ptr = gm_get_cur_pos ( map ); 
       /* if the whole block is completely beyond the map boundary,
 	 we are not interested in it; */
     while ( s->hit_def->levels[bn].h2m_cmp_func ( map_ptr, (Z32 *)&w->cached[0], s->hit_def, bn) < 0 ) {
       if ( !gm_inc_pos ( map ) ) {
-	s_log ( s->debug, L_INFO, "reached the end of map while FF-ing to the begining of the next (cached) block; map pos. %d", (Z8 *)map->gm_c );
-	s_log ( s->debug, L_INFO, "map index 0=%d", (Z8 *)map_ptr[0] );
-	s_log ( s->debug, L_INFO, "map index 1=%d", (Z8 *)map_ptr[1] );
-	s_log ( s->debug, L_INFO, "map index 2=%d", (Z8 *)map_ptr[2] );
+	s_logf ( s->debug, L_INFO, "reached the end of map while FF-ing to the begining of the next (cached) block; map pos. %d", map->gm_c );
+	s_logf ( s->debug, L_INFO, "map index 0=%d", map_ptr[0] );
+	s_logf ( s->debug, L_INFO, "map index 1=%d", map_ptr[1] );
+	s_logf ( s->debug, L_INFO, "map index 2=%d", map_ptr[2] );
 	return (Gmap)-1;
       }
       map_ptr = gm_get_cur_pos ( map ); 
@@ -183,16 +183,16 @@ Gmap retreive_hit_block ( Search s, N8 bn, Word w, N32 n, Gmap map, N32 *howmany
   Z32 map_pos;
   Gmap hits = NULL;
   *howmany = 0; 
-  s_log ( s->debug, L_INFO, "retreive_hit_block: entry %d", (Z8 *)n ); 
+  s_logf ( s->debug, L_INFO, "retreive_hit_block: entry %d", n ); 
 
   if ( map ) {
     map_pos = map->gm_c; 
-    s_log ( s->debug, L_INFO, "retreiving; search map position: %d", (Z8 *)map_pos ); 
-    s_log ( s->debug, L_INFO, "search map factor: %d", (Z8 *)map->gm_f); 
-    s_log ( s->debug, L_INFO, "search map length: %d", (Z8 *)map->gm_l); 
+    s_logf ( s->debug, L_INFO, "retreiving; search map position: %d", map_pos ); 
+    s_logf ( s->debug, L_INFO, "search map factor: %d", map->gm_f); 
+    s_logf ( s->debug, L_INFO, "search map length: %d", map->gm_l); 
 
     map_ptr = gm_get_cur_pos ( map ); 
-    s_log ( s->debug, L_INFO, "element on the map: %d", (Z8 *)map_ptr[0] ); 
+    s_logf ( s->debug, L_INFO, "element on the map: %d", map_ptr[0] ); 
     /*  if the whole block is completely beyond (above) the map boundary,
 	 we are not interested in it; */
     while ( s->hit_def->levels[bn].h2m_cmp_func ( map_ptr, gm_get_pos ( w->dir, n ), s->hit_def, bn) < 0 ) {
@@ -219,18 +219,18 @@ Gmap retreive_hit_block ( Search s, N8 bn, Word w, N32 n, Gmap map, N32 *howmany
   else {
     s_log ( s->debug, L_INFO, NULL, "retreiving; (no map)" ); 
   }
-  s_log ( s->debug, L_INFO, "calling gethits on map block %d;", (Z8*)n ); 
+  s_logf ( s->debug, L_INFO, "calling gethits on map block %d;", n ); 
   hits = new_Gmap ( 0, s->hit_def->fields );
   hits->gm_h =  hit_gethits ( s->db,w->type, gm_get_pos ( w->dir, n ), w->offset, howmany );
   hits->gm_l =  *howmany; 
-  s_log ( s->debug, L_INFO, "gethits got us %d hits;", (Z8*)(*howmany) );
+  s_logf ( s->debug, L_INFO, "gethits got us %d hits;", (*howmany) );
   w->offset+=s->db->dbspec->block_size;
   return hits; 
 }
 
 Z32 filternload_hits ( Search s, N8 bn, Word w, N32 n, Gmap map, Gmap hits, N32 howmany, Gmap res ) 
 {
-  Z32 status = 0; 
+  Z32 status = 0;
   Z32 put_status = 0; 
   Z32 *map_ptr;
   Z32 *res_ptr;
@@ -343,13 +343,12 @@ Z32 load_hits ( Search s, Gmap hits, N32 howmany, Gmap res )
   Z32  ctr; 
   Z32 *res_ptr;
   Z32  status;
-  s_log ( s->debug, L_INFO, "loading %d hits w/out filtering", (Z8 *)howmany ); 
+  s_logf ( s->debug, L_INFO, "loading %d hits w/out filtering", howmany ); 
   for ( ctr = 0; ctr < howmany; ctr++ ) {
     res_ptr = gm_get_eod ( res ); 
     status = hit_put ( gm_get_pos ( hits, ctr ), NULL, res_ptr, s->hit_def, 0 );
     if ( status != res->gm_f ) {
-      s_log ( s->debug, L_ERROR, 
-	      "wrong number (%d) of indices put on the map", (Z8 *)status);
+      s_logf ( s->debug, L_ERROR, "wrong number (%d) of indices put on the map", status);
       return RETR_BUMMER;
     }
     else {
@@ -371,21 +370,21 @@ Z32 process_hit_block_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map, Gma
   /* before we do anything else, we should check if we have cached hits
      stored in this block:*/
   if ( w->n_cached ) {
-    s_log ( s->debug, L_INFO, "found %d stored hits; processing.", (Z8 *)w->n_cached ); 
+    s_logf ( s->debug, L_INFO, "found %d stored hits; processing.", w->n_cached ); 
     /*  this is not supposed to happen: 
         we should never get to another (next?) block while we still
         have indices cached from this one! */
     if ( w->blk_cached != n ) {
-      s_log ( s->debug, L_ERROR, "found cached hits from block %d,", (Z8 *)w->blk_cached ); 
-      s_log ( s->debug, L_ERROR, "while processing block %d.", (Z8 *)n ); 
+      s_logf ( s->debug, L_ERROR, "found cached hits from block %d,", w->blk_cached ); 
+      s_logf ( s->debug, L_ERROR, "while processing block %d.", n ); 
       return RETR_BUMMER;
     }      
     hits = retreive_cached_hits_booleannot ( s, bn, w, n, map, res, &howmany ); 
   }
   else {
-    s_log ( s->debug, L_INFO, "retreiving hit block for entry %d;", (Z8 *)n ); 
+    s_logf ( s->debug, L_INFO, "retreiving hit block for entry %d;", n ); 
     hits = retreive_hit_block_booleannot ( s, bn, w, n, map, res, &howmany ); 
-    s_log ( s->debug, L_INFO, "%d hits retreived;", (Z8 *)howmany ); 
+    s_logf ( s->debug, L_INFO, "%d hits retreived;", howmany ); 
   }
   /*  while we were retreiving hit blocks above, we might have put
       something on the result map (even before we get to filtering 
@@ -403,9 +402,9 @@ Z32 process_hit_block_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map, Gma
     s_log ( s->debug, L_INFO, NULL, "retreive_hit_block_booleannot returned -1; END_OF_MAP reached; returning." ); 
     return ( status | RETR_END_OF_MAP );
   }
-  s_log ( s->debug, L_INFO, "boolean not: filtering search map against retreived hits; (map block %d)", (Z8*)n ); 
+  s_logf ( s->debug, L_INFO, "boolean not: filtering search map against retreived hits; (map block %d)", n ); 
   status = filternload_booleannot ( s, bn, w, n, map, hits, howmany, res ); 
-  s_log ( s->debug, L_INFO, "filternload_boolean returned %d;", (Z8*)status ); 
+  s_logf ( s->debug, L_INFO, "filternload_boolean returned %d;", status ); 
   old_Gmap ( hits ); 
   return status;
 }
@@ -416,7 +415,7 @@ Gmap retreive_cached_hits_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map,
   Z32 *map_ptr = gm_get_cur_pos ( map );
   Z32 *res_ptr = NULL;
   *howmany = 0; 
-  s_log ( s->debug, L_INFO, "retreiving cached/NOT; search map position: %d", (Z8 *)map->gm_c );      
+  s_logf ( s->debug, L_INFO, "retreiving cached/NOT; search map position: %d", map->gm_c );      
 
   while ( s->hit_def->levels[bn].h2m_cmp_func ( map_ptr, (Z32 *)&w->cached[0], s->hit_def, bn) < 0 ){
     /* PUT HIT ON THE RESULT MAP */
@@ -456,9 +455,9 @@ Gmap retreive_hit_block_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map, G
   Z32 j; 
 
   *howmany = 0; 
-  s_log ( s->debug, L_INFO, "retreive_hit_block/NOT: entry %d", (Z8 *)n ); 
-  /*s_log ( s->debug, L_INFO, "retreive_hit_block/NOT: document %d", (Z8 *)((w->dir)[n].index[0]) ); */
-  s_log ( s->debug, L_INFO, "retreiving/NOT; search map position: %d", (Z8 *)map_pos ); 
+  s_logf ( s->debug, L_INFO, "retreive_hit_block/NOT: entry %d", n ); 
+  /*s_logf ( s->debug, L_INFO, "retreive_hit_block/NOT: document %d", ((w->dir)[n].index[0]) ); */
+  s_logf ( s->debug, L_INFO, "retreiving/NOT; search map position: %d", map_pos ); 
 
   /* if the whole block is completely beyond the map boundary,
      we are not interested in it -- that is, for now. 
@@ -484,7 +483,7 @@ Gmap retreive_hit_block_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map, G
   }
 
   map_pos = map->gm_c; 
-  s_log ( s->debug, L_INFO, "retreiving/NOT; search map position (FF-d): %d", (Z8 *)map_pos ); 
+  s_logf ( s->debug, L_INFO, "retreiving/NOT; search map position (FF-d): %d", map_pos ); 
   /* if it's completely below, we simply discard the block. */
 
   if ( n < w->blkcount - 1 && 
@@ -493,12 +492,12 @@ Gmap retreive_hit_block_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map, G
     w->offset+=s->db->dbspec->block_size;
     return NULL;
   }
-  s_log ( s->debug, L_INFO, "calling gethits on map block %d;", (Z8*)n );
+  s_logf ( s->debug, L_INFO, "calling gethits on map block %d;", n );
   
   hits = new_Gmap ( 0, s->hit_def->fields ); 
   hits->gm_h =  hit_gethits ( s->db,w->type, gm_get_pos ( w->dir, n ), w->offset, howmany );
   hits->gm_l =  *howmany; 
-  s_log ( s->debug, L_INFO, "gethits got us %d hits;", (Z8*)(*howmany) );
+  s_logf ( s->debug, L_INFO, "gethits got us %d hits;", (*howmany) );
   w->offset+=s->db->dbspec->block_size;
   return hits; 
 }
@@ -546,7 +545,7 @@ Z32 filternload_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map, Gmap hits
     while ( s->hit_def->levels[bn].h2m_cmp_func ( map_ptr, gm_get_pos ( hits, ctr), s->hit_def, bn ) ) {
       if ( ( b->blkmapctr < b->blockmap_l - 1 )
 	   && ( s->hit_def->levels[bn].h2h_cmp_func ( gm_get_pos ( hits, ctr ), next_block_bndry, s->hit_def, bn) >= 0 ) ) { 
-	s_log ( s->debug, L_INFO, "reached the boundary of the next block in filternload_boolean, 2nd loop entry; hit %d.", (Z8*)ctr ); 	
+	s_logf ( s->debug, L_INFO, "reached the boundary of the next block in filternload_boolean, 2nd loop entry; hit %d.", ctr ); 	
 	status |= RETR_REACHED_NEXT_BLOCK_BOUNDARY; 
 	break; 
       }
@@ -586,7 +585,7 @@ Z32 filternload_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map, Gmap hits
 	}
 	if ( ( b->blkmapctr < b->blockmap_l - 1 ) &&
 	     ( s->hit_def->levels[bn].h2h_cmp_func ( gm_get_pos ( hits, ctr), next_block_bndry, s->hit_def, bn) >= 0 ) ) { 
-	  s_log ( s->debug, L_INFO, "reached the boundary of the next block in filternload_boolean; hit %d.", (Z8*)ctr ); 		   
+	  s_logf ( s->debug, L_INFO, "reached the boundary of the next block in filternload_boolean; hit %d.", ctr ); 		   
 	  status |= RETR_REACHED_NEXT_BLOCK_BOUNDARY; 
 	  break; 
 	}
@@ -717,12 +716,12 @@ Z32 process_single_entry_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map, 
     return RETR_BUMMER;
   }
   map_ptr = gm_get_cur_pos ( map ); 
-  s_log ( s->debug, L_INFO, "(word is from document %d)", (Z8*)(w->dir->gm_h[w->dir->gm_f*n]) );
+  s_logf ( s->debug, L_INFO, "(word is from document %d)", (w->dir->gm_h[w->dir->gm_f*n]) );
   while ( s->hit_def->levels[bn].h2m_cmp_func ( map_ptr, gm_get_pos (w->dir, n), s->hit_def, bn) < 0 ) {
     res_ptr = gm_get_eod ( res ); 
     memcpy ( res_ptr, map_ptr, map->gm_f * sizeof(Z32) );
     gm_inc_eod ( res ); 
-    s_log ( s->debug, L_INFO, "single boolean NOT entry; %d hits on the results map;", (Z8*)res->gm_eod );
+    s_logf ( s->debug, L_INFO, "single boolean NOT entry; %d hits on the results map;", res->gm_eod );
     if ( !gm_inc_pos ( map ) ) {
 	return RETR_END_OF_MAP;
     }
@@ -750,7 +749,7 @@ Z32 process_single_entry_booleannot ( Search s, N8 bn, Word w, N32 n, Gmap map, 
       res_ptr = gm_get_eod ( res ); 
       memcpy ( res_ptr, map_ptr, map->gm_f * sizeof(Z32) );
       gm_inc_eod ( res ); 
-      s_log ( s->debug, L_INFO, "(NOT) loading rest of map; %d results;", (Z8*)res->gm_eod );  
+      s_logf ( s->debug, L_INFO, "(NOT) loading rest of map; %d results;", res->gm_eod );  
       if ( !gm_inc_pos ( map ) ) {
 	break;
       }

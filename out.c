@@ -20,54 +20,38 @@
 #include <stdio.h>
 #include "c.h"
 #include "search.h"
-
 #include "out.h"
-
 
 Z32 dump_hits_out ( Search s, N32 level, Gmap m )
 {
   N32 n = m->gm_eod;
   N32 i; 
-
-  s_log ( s->debug, L_INFO, "dumping out results; (%d hits on map)", (Z8 *)n );
-  s_log ( s->debug, L_INFO, "map position set to %d;", (Z8 *)m->gm_c ); 
-
-  if ( s->hit_def->output == HIT_OUT_ASCII )
+  s_logf ( s->debug, L_INFO, "dumping out results; (%d hits on map)", n );
+  s_logf ( s->debug, L_INFO, "map position set to %d;", m->gm_c ); 
+  if ( s->hit_def->output == HIT_OUT_ASCII ) {
     s_log ( s->debug, L_INFO, NULL, (Z8 *)"(output set to ASCII)" );
-
-  for ( i = 0; i < n; i++ )
-    {
-      if ( s->depth_r )
+  }
+  for ( i = 0; i < n; i++ ) {
+    if ( s->depth_r ) {
 	(void) hit_out ( gm_get_pos(m, i), s->hit_def, level, s->depth_r ); 
-      else 
+    }
+    else {
 	(void) hit_out ( gm_get_pos(m, i), s->hit_def, level, s->depth ); 
-      s->n_printed++; 
-
-      if ( ! ( s->n_printed % 100 ) )
+    }
+    s->n_printed++; 
+    if ( ! ( s->n_printed % 100 ) ) {
 	fflush( stdout );
-      else if ( s->n_printed == s->soft_limit )
-	{
+    }
+    else if ( s->n_printed == s->soft_limit ) {
 	  s->batch_limit = DEFAULT_BATCH_LIMIT;
 	  fflush( stdout );
-	}                                                                             
-      if ( s->n_printed == s->print_limit )
-	{
-	  fflush( stdout );
-	  s->exitcode = 111; 
-	  return SEARCH_PRINT_LIMIT_REACHED;
-	}
-
+    }                                                                             
+    if ( s->n_printed == s->print_limit ) {
+      fflush( stdout );
+      s->exitcode = 111; 
+      return SEARCH_PRINT_LIMIT_REACHED;
     }
-
+  }
   fflush( stdout );
-
-
   return 0;
 }
-
-
-
-
-
-
-

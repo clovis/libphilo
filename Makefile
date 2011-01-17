@@ -13,11 +13,11 @@ all: 	search4	libphilo.dylib db/pack4
 db/pack4: db/pack.c db/pack.h db/db.c db/db.h
 	(cd db; make pack4)
 
-search4: search4.c search.o retreive.o gmap.o word.o blockmap.o level.o out.o log.o plugin/libindex.a db/db.o db/bitsvector.o db/unpack.o
-	$(PH_BUILDENV) $(CC) $(CFLAGS) $(CPPFLAGS) $(PH_CFLAGS) $(LDFLAGS) $(PH_LDSEARCHFLAGS) search4.c search.o retreive.o gmap.o word.o blockmap.o level.o out.o log.o db/db.o db/bitsvector.o db/unpack.o plugin/libindex.a -lgdbm -o search4
+search4: search4.c search.o retreive.o gmap.o word.o blockmap.o level.o out.o plugin/libindex.a db/db.o db/bitsvector.o db/unpack.o
+	$(PH_BUILDENV) $(CC) $(CFLAGS) $(CPPFLAGS) $(PH_CFLAGS) $(LDFLAGS) $(PH_LDSEARCHFLAGS) search4.c search.o retreive.o gmap.o word.o blockmap.o level.o out.o db/db.o db/bitsvector.o db/unpack.o plugin/libindex.a -lgdbm -o search4
 
-libphilo.dylib: search.o word.o retreive.o level.o gmap.o blockmap.o log.o out.o plugin/libindex.a db/db.o db/bitsvector.o db/unpack.o
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -dynamiclib -std=gnu99 search.o word.o retreive.o level.o gmap.o blockmap.o log.o out.o plugin/libindex.a db/db.o db/bitsvector.o db/unpack.o -lgdbm -o libphilo.dylib
+libphilo.dylib: search.o word.o retreive.o level.o gmap.o blockmap.o log.h out.o plugin/libindex.a db/db.o db/bitsvector.o db/unpack.o
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -dynamiclib -std=gnu99 search.o word.o retreive.o level.o gmap.o blockmap.o out.o plugin/libindex.a db/db.o db/bitsvector.o db/unpack.o -lgdbm -o libphilo.dylib
 
 db/db.o:  db/db.c db/db.h db/bitsvector.c db/bitsvector.h
 	(cd db; make db.o)

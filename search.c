@@ -141,7 +141,7 @@ Z32 produce_hits ( Search s, N32 level, Gmap map, Gmap res )
   Z32 code_retreive;
   s_log ( s->debug, L_INFO, NULL, "attempting to retreive hits..." );
   code_retreive = retreive_hits ( s, level, map, res );
-  s_log ( s->debug, L_INFO, "done (code %d returned);", (Z8 *)code_retreive );
+  s_logf ( s->debug, L_INFO, "done (code %d returned);", code_retreive );
   if ( code_retreive & RETR_BUMMER ){
       s_log ( s->debug, L_ERROR, NULL, "produce_hits: retreive_hits failed" );
       return SEARCH_BUMMER_OCCURED;
@@ -179,17 +179,17 @@ Gmap map_store_tail ( Search s, N32 level, Gmap r )
   Z32  new_len = 0; 
   Z8   logmesg[256];
 
-  s_log ( s->debug, L_INFO, "entering store_tail; blockmapctr=%d",(Z8 *)B->blkmapctr );
+  s_logf ( s->debug, L_INFO, "entering store_tail; blockmapctr=%d",B->blkmapctr );
 
   sprintf ( logmesg, "n_cached=%d", w->n_cached );
   s_log ( s->debug, L_INFO, NULL, logmesg );
 
   nexthit = w->n_cached ? (Z32 *)w->cached : gm_get_pos ( w->dir, n );
   c = r->gm_eod - 1;
-  s_log ( s->debug, L_INFO, "entering store_tail; counter set to %d",(Z8 *)c ); 
+  s_logf ( s->debug, L_INFO, "entering store_tail; counter set to %d",c ); 
   map_ptr = gm_get_pos ( r, c );
-  s_log ( s->debug, L_INFO, "\"next hit\" is in doc %d;", (Z8 *)*nexthit );
-  s_log ( s->debug, L_INFO, "map_ptr points to hit in %d;", (Z8 *)*map_ptr );
+  s_logf ( s->debug, L_INFO, "\"next hit\" is in doc %d;", *nexthit );
+  s_logf ( s->debug, L_INFO, "map_ptr points to hit in %d;", *map_ptr );
 
   if ( s->hit_def->levels[level].cntxt_cmp_func == NULL ) {
     s_log ( s->debug, L_ERROR, NULL, "uninitialized context comp. function!" );
@@ -199,14 +199,14 @@ Gmap map_store_tail ( Search s, N32 level, Gmap r )
     c--; 
     map_ptr = gm_get_pos ( r, c ); 
   }
-  s_log ( s->debug, L_INFO, "%d hits left on the map;", (Z8 *)(c+1) );  
+  s_logf ( s->debug, L_INFO, "%d hits left on the map;", (c+1) );  
   if ( r->gm_eod - c - 1 ){
-    s_log ( s->debug, L_INFO, "creating new map to store %d hits;", (Z8 *)(r->gm_eod - c - 1) ); 
+    s_logf ( s->debug, L_INFO, "creating new map to store %d hits;", (r->gm_eod - c - 1) ); 
     new_len = MAP_INIT_LEN;
     while ( r->gm_eod - c - 1 > new_len ){
       new_len *= 2; 
     }
-    s_log ( s->debug, L_INFO, "length of the new map is %d;", (Z8 *)new_len ); 
+    s_logf ( s->debug, L_INFO, "length of the new map is %d;", new_len ); 
     new = new_Gmap ( new_len, r->gm_f ); 
     memcpy ( new->gm_h, gm_get_pos(r,c+1), sizeof(Z32)*(r->gm_eod-c-1)*new->gm_f );
     gm_set_eod ( new, r->gm_eod - c - 1); 
@@ -246,7 +246,7 @@ void sort_result_map ( Search s, Gmap m )
     resmap_sort_func ( NULL, (const void *)s ); 
 
   /* now we can use it to sort the results: */
-  s_log ( s->debug, L_INFO, "attempting to sort a map of length %d;", (Z8 *)m->gm_eod ); 
+  s_logf ( s->debug, L_INFO, "attempting to sort a map of length %d;", m->gm_eod ); 
   qsort ( m->gm_h, m->gm_eod, sizeof(Z32)*(m->gm_f), resmap_sort_func ); 
   s_log ( s->debug, L_INFO, NULL, "(sorted)" ); 
 }
@@ -260,7 +260,7 @@ N32 search_pass ( Search s, N32 bn )
   Z32  code;
   Z32  code_nl; 
 
-  s_log ( s->debug, L_INFO, "entering search pass, level %d", (Z8 *)bn ); 
+  s_logf ( s->debug, L_INFO, "entering search pass, level %d", bn ); 
   /* let's create a map for the search results:*/
   if ( s->batches[bn].not_op ){
     if ( ! map ){
@@ -276,9 +276,9 @@ N32 search_pass ( Search s, N32 bn )
     rmf = s->hit_def->levels[bn].hitsize_func(s->hit_def, bn);
   }
 
-  s_log ( s->debug, L_INFO, "initializing results map... (factor %d)", (Z8 *)rmf ); 
+  s_logf ( s->debug, L_INFO, "initializing results map... (factor %d)", rmf ); 
   s->batches[bn].res = new_Gmap ( MAP_INIT_LEN, rmf ); 
-  s_log ( s->debug, L_INFO, "initialized results map; (factor %d)", (Z8 *)rmf ); 
+  s_logf ( s->debug, L_INFO, "initialized results map; (factor %d)", rmf ); 
 
   /* OK, here's the logic of what's going on here: 
      
@@ -290,7 +290,7 @@ N32 search_pass ( Search s, N32 bn )
      Map), OR get too many hits on the Result map: */
 
   while (( code = produce_hits ( s, bn, map, s->batches[bn].res )) != SEARCH_BUMMER_OCCURED ){
-    s_log ( s->debug, L_INFO, "produce_hits returned %d", (Z8 *)code ); 
+    s_logf ( s->debug, L_INFO, "produce_hits returned %d", code ); 
     if ( code == SEARCH_PASS_OK ){/* just keep retreiving... */
       s_log ( s->debug, L_INFO, NULL, "continuing into next block" ); 
     }
@@ -347,15 +347,15 @@ N32 search_pass ( Search s, N32 bn )
 	s->batches[bn].stored = map_store_tail ( s, bn, s->batches[bn].res );
       }
       if ( s->batches[bn].stored ){
-	s_log ( s->debug, L_INFO, "done; (%d hits stored)", (Z8 *)s->batches[bn].stored->gm_eod ); 
+	s_logf ( s->debug, L_INFO, "done; (%d hits stored)", s->batches[bn].stored->gm_eod ); 
       }
       else{
 	s_log ( s->debug, L_INFO, NULL, "proceeding with the res. map intact" ); 
       }
       gm_set_pos ( s->batches[bn].res, 0 ); 
       /*gm_rewind ( res );*/
-      s_log ( s->debug, L_INFO, "result map position set to %d", (Z8 *)s->batches[bn].res->gm_c ); 
-      s_log ( s->debug, L_INFO, "%d hits on the result map", (Z8 *)s->batches[bn].res->gm_eod ); 
+      s_logf ( s->debug, L_INFO, "result map position set to %d", s->batches[bn].res->gm_c ); 
+      s_logf ( s->debug, L_INFO, "%d hits on the result map", s->batches[bn].res->gm_eod ); 
 
       if ( s->batches[bn].res->gm_eod ) {
 	if ( bn == s->depth - 1 ) {
@@ -413,13 +413,13 @@ N32 search_pass ( Search s, N32 bn )
 	before we ran the lower-level search:*/	      
 	      
       if ( s->batches[bn].stored ){
-	s_log ( s->debug, L_INFO, "found stored results (%d hits)", (Z8 *)s->batches[bn].stored->gm_eod ); 
+	s_logf ( s->debug, L_INFO, "found stored results (%d hits)", s->batches[bn].stored->gm_eod ); 
 	s->batches[bn].res = s->batches[bn].stored;
 	s->batches[bn].stored = NULL;
       }
       else {
 	s->batches[bn].res = new_Gmap ( MAP_INIT_LEN, rmf ); 
-	s_log ( s->debug, L_INFO, "initialized results map, again; (factor %d)", (Z8 *)rmf ); 
+	s_logf ( s->debug, L_INFO, "initialized results map, again; (factor %d)", rmf ); 
       }
     }
   }
@@ -429,4 +429,5 @@ N32 search_pass ( Search s, N32 bn )
 
   return SEARCH_BUMMER_OCCURED;
 }
+
 

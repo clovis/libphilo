@@ -20,8 +20,8 @@ class PhiloDB:
         hash.update(method or "")
         hash.update(method_arg or "")
         for key,value in metadata.items():
-            hash.update(key)
-            hash.update(value)
+            hash.update(str(key))
+            hash.update(str(value))
         hex_hash = hash.hexdigest()
         print >> sys.stderr,"%s hashes to %s" % (hashable,hex_hash)
         #check here to see if the query is cached.

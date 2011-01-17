@@ -17,7 +17,7 @@ class HitList(object):
             self.length = 7 + 2 * (words)
         else:
             self.has_word_id = 0 #unfortunately.  fix this next time I have 3 months to spare.
-            self.length = methodarg + 2 * (words)
+            self.length = methodarg + 1 + (words)
         self.fh = open(self.filename) #need a full path here.
         self.format = "=%dI" % self.length #short for object id's, int for byte offset.
         self.hitsize = struct.calcsize(self.format) 
@@ -79,8 +79,19 @@ class HitList(object):
         return(struct.unpack(self.format,buffer))
     
     def get_doc(self,hit):
-        return hit[self.doc]
+        return hit[0]
         
-    def get_byte(self,hit):
-        return hit[self.byte]
+    def get_bytes(self,hit):
+        if self.method is not "cooc":
+            rest = hit[7:]
+            bytes = []
+            while rest:
+                bytes.append(rest[1])
+                rest = rest[2:]
+        else:
+            bytes = hit[(int(self.methodarg)):]
+        bytes.reverse()
+        return bytes
         
+    def get_words(self,hit):
+        pass

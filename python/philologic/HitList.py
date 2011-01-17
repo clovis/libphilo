@@ -7,11 +7,19 @@ import codecs
 import struct
 
 class HitList(object):
-    def __init__(self,filename,words,doc=0,byte=6):
+    def __init__(self,filename,words,doc=0,byte=6,method="proxy",methodarg = 3):
         self.filename = filename
         self.words = words
+        self.method = method
+        self.methodarg = methodarg
+        if method is not "cooc":
+            self.has_word_id = 1
+            self.length = 7 + 2 * (words)
+        else:
+            self.has_word_id = 0 #unfortunately.  fix this next time I have 3 months to spare.
+            self.length = methodarg + 2 * (words)
         self.fh = open(self.filename) #need a full path here.
-        self.format = "=6H" + str(words) + "I" #short for object id's, int for byte offset.
+        self.format = "=%dI" % self.length #short for object id's, int for byte offset.
         self.hitsize = struct.calcsize(self.format) 
         self.doc = doc
         self.byte = byte

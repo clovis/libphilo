@@ -5,8 +5,8 @@ CFLAGS= $(PH_CFLAGS)
 
 all: libindex.a 
 
-libindex.a: hitdef.o hitcmp_cooc.o hitcmp_phrase.o hitcmp_proxy.o hitout.o hitman.o hitcrp.o method.o plugin.o
-	ar ru $@ hitdef.o hitcmp_cooc.o hitcmp_phrase.o hitcmp_proxy.o hitout.o hitman.o hitcrp.o method.o plugin.o
+libindex.a: hitdef.o hitcmp_sent.o hitcmp_cooc.o hitcmp_phrase.o hitcmp_proxy.o hitout.o hitman.o hitcrp.o method.o plugin.o
+	ar ru $@ hitdef.o hitcmp_cooc.o hitcmp_phrase.o hitcmp_proxy.o hitout.o hitman.o hitcrp.o method.o plugin.o hitcmp_sent.o
 	ranlib $@
 
 hitdef.o: 	hitdef.c hitcon.h hitcmp.h hitdef.h hitman.h hitout.h
@@ -18,6 +18,8 @@ hitcmp_cooc.o: 	hitcmp_cooc.c hitcon.h hitcmp.h hitdef.h hitman.h hitout.h
 hitcmp_phrase.o: 	hitcmp_phrase.c hitcon.h hitcmp.h hitdef.h hitman.h hitout.h
 
 hitcmp_proxy.o: 	hitcmp_proxy.c hitcon.h hitcmp.h hitdef.h hitman.h hitout.h
+
+hitcmp_sent.o: hitcmp_sent.c hitcmp_sent.h hitcon.h hitcmp.h hitdef.h hitman.h hitout.h
 
 hitout.o: 	hitout.c hitcon.h hitout.h hitdef.h hitman.h hitcmp.h
 #	$(CC)    -c -o hitout.o hitout.c

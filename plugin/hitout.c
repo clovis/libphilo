@@ -38,14 +38,15 @@ Z32 hit_out_ascii (Z32 *m, hitdef *hit_def, Z32 bn, Z32 real_levels)
 
   n = context;
   n = n == INDEX_DEF_SENTENCE ? n - 1 : n;
- 
+  n = h->hitsize_func(hit_def,(Z8)real_levels); 
+  n = ( context + bn * (wn_skip + 1) + wn_skip );
   /* "normal" objects: */
  
-  for ( i = 0; i < n; i++ )
+  for ( i = 0; i <= n; i++ )
     printf ("%d ", m[i]);
  
-  printf ("%d ", m[context]);
- 
+  printf ("%d\n", m[i]);
+ 	return 1;
   /* finally, the list of byte offsets: */
 
   i = 1; 
@@ -79,9 +80,12 @@ Z32 hit_out_bin (Z32 *m, hitdef *hit_def, Z32 bn, Z32 real_levels)
 
   n = context;
   n = n == INDEX_DEF_SENTENCE ? n - 1 : n;
- 
+  n = ( context + bn * (wn_skip + 1) + wn_skip ); 
   /* "normal" objects: */
- 
+  for (i = 0; i <= n + 1; i++) {
+  	fwrite(&m[i],sizeof(Z32),1,stdout);
+  }
+  return 1; 
   doc = (N16) m[0];
   fwrite (&doc, sizeof(N16), 1, stdout);
 

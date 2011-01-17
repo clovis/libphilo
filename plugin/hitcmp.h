@@ -78,10 +78,12 @@
   #define  HIT_CMP_COOC   1
   #define  HIT_CMP_PHRASE 2
   #define  HIT_CMP_PROXY  3
+  #define  HIT_CMP_SENTENCE 4
 
   #include "hitcmp_cooc.h"
   #include "hitcmp_phrase.h"
   #include "hitcmp_proxy.h"
+  #include "hitcmp_sent.h"
 
   #define  HIT_CMP_ARGZ_USAGE "{SEARCH OPTIONS} are: \
            (cooc[:context]|phrase[:distance]|proxy[:distance])"

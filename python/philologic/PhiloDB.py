@@ -12,13 +12,14 @@ class PhiloDB:
     def __getitem__(self,n):
         return self.toms[n]
 
-    def query(self,qs,method=None,method_arg=0,**metadata):
+    def query(self,qs,method=None,method_arg=0,limit=1000000,**metadata):
         hashable = (qs,method,method_arg,tuple(metadata.items()))
         hash = hashlib.sha1()
         hash.update(self.path)
         hash.update(qs)
         hash.update(method or "")
         hash.update(method_arg or "")
+        hash.update(str(limit))
         for key,value in metadata.items():
             hash.update(str(key))
             hash.update(str(value))
@@ -44,7 +45,7 @@ class PhiloDB:
             corpus_fh.close()
             if corpus_count == 0: return []
         print >> sys.stderr, "%d metadata objects" % corpus_count
-        return Query.query(self.path,qs,corpus_file,corpus_size,method,method_arg,filename=hfile)
+        return Query.query(self.path,qs,corpus_file,corpus_size,method,method_arg,limit,filename=hfile)
         
     def word_search(self,qs,*metadata_dicts,**options):
         hash = hashlib.sha1()

@@ -43,8 +43,12 @@ class SqlToms:
             for k,v in args.items():
                 if wherecount:
                     qstring += " AND"
-                qstring += " %s LIKE ?" % (k) # forgot the AND
-                vs.append("%" + v + "%")
+                if k == "philo_type":
+                    qstring += " %s == ?" % (k)
+                    vs.append(v)
+                else:
+                    qstring += " %s LIKE ?" % (k) # forgot the AND
+                    vs.append("%" + v + "%")
                 wherecount += 1
             qstring += " ORDER BY philo_seq;"
             print >> sys.stderr, qstring
@@ -88,6 +92,8 @@ class SqlToms:
         db = self.dbh
         db.text_factory = str
         db.execute("CREATE TABLE IF NOT EXISTS toms (philo_type,philo_name,philo_id,philo_seq);")
+        db.execute("CREATE INDEX type_index ON tom(philo_type);")
+        db.execute("CREATE INDEX id_index ON toms(philo_id);")
         s = 0
         for line in open(file_in):
             (philo_type,philo_name,rest) = line.split("\t")
@@ -125,7 +131,7 @@ class SqlToms:
 
 def hit_to_string(hit,width):
     if isinstance(hit,str):
-        hit = [int(x) for x in string.split(" ")]
+        hit = [int(x) for x in hit.split(" ")]
     if isinstance(hit,int):
         hit = [hit]
     if len(hit) > width:

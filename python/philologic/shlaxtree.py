@@ -43,8 +43,9 @@ class ShlaxIngestor():
             if m.group("EndTag"):
                 type = "end"
                 content = m.group(0)
+                parseable_content = m.group("EndTag")
                 offset = match_start
-                nm = re.match(shlax.EndTagCE,content)
+                nm = re.match(shlax.EndTagCE,parseable_content)
                 if nm:
                     name = nm.group("EndTagName")   
                 else:

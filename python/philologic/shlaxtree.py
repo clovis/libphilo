@@ -42,7 +42,7 @@ class ShlaxIngestor():
                 self.target.feed(type,content,offset,None,None)
             if m.group("EndTag"):
                 type = "end"
-                content = m.group("EndTag")
+                content = m.group(0)
                 offset = match_start
                 nm = re.match(shlax.EndTagCE,content)
                 if nm:

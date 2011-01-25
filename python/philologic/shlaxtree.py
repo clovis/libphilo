@@ -72,7 +72,7 @@ class ShlaxIngestor():
             if empty:
                 self.target.feed("end","",offset,name,None)
             last_end = m.end(0)
-        self.buffer_offset = self.byte_offset + last_end
+        self.buffer_offset = self.buffer_offset + last_end
         self.buffer = self.buffer[last_end:]
 
     def close(self):

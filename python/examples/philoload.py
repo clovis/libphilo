@@ -59,19 +59,19 @@ os.chdir(workdir)
 
 #We'll define our parse routine here, then call it below in the fork loop.
 def parsework(name,docid,path,raw,words,toms,sortedtoms,results):
-        i = open(path)
-        o = codecs.open(raw, "w")
-        print "parsing %d : %s" % (docid,name)
-        parser = Parser(name,docid)
-        r = parser.parse(i,o)
-        # parser.parse() writes a raw output stream to o.  returns a 9-field maximum vector.
-        wordcommand = "cat %s | egrep \"^word\" | sort %s %s > %s" % (raw,sort_by_word,sort_by_id,words)
-        os.system(wordcommand)
-        tomscommand = "cat %s | egrep \"^doc|^div\" | sort %s > %s" % (raw,sort_by_id,sortedtoms)
-        os.system(tomscommand)
-        i.close()
-        o.close()
-        return r
+	i = open(path)
+	o = codecs.open(raw, "w")
+	print "parsing %d : %s" % (docid,name)
+	parser = Parser(name,docid)
+	r = parser.parse(i,o)
+	# parser.parse() writes a raw output stream to o.  returns a 9-field maximum vector.
+	wordcommand = "cat %s | egrep \"^word\" | sort %s %s > %s" % (raw,sort_by_word,sort_by_id,words)
+	os.system(wordcommand)
+	tomscommand = "cat %s | egrep \"^doc|^div\" | sort %s > %s" % (raw,sort_by_id,sortedtoms)
+	os.system(tomscommand)
+	i.close()
+	o.close()
+	return r
 
 print "parsing..."
 max_workers = 8
@@ -137,9 +137,9 @@ offset = 0
 # unix one-liner for a frequency table
 os.system("cut -f 2 %s | uniq -c > %s" % ( workdir + "/all.words.sorted", workdir + "/all.frequencies") )
 
-# now scan over the frequency table to figure out how wide the frequency fields are, and how large the block file will be.
+# now scan over the frequency table to figure out how wide (in bits) the frequency fields are, and how large the block file will be.
 for line in open(workdir + "/all.frequencies"):
-    f, word = line.rsplit()
+    f, word = line.rsplit() # uniq -c pads output on the left side, so we split on the right.
     f = int(f)    
     if f > freq2:
         freq2 = f

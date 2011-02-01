@@ -92,16 +92,16 @@ class SqlToms:
         db = self.dbh
         db.text_factory = str
         db.execute("CREATE TABLE IF NOT EXISTS toms (philo_type,philo_name,philo_id,philo_seq);")
-        db.execute("CREATE INDEX type_index ON tom(philo_type);")
+        db.execute("CREATE INDEX type_index ON toms(philo_type);")
         db.execute("CREATE INDEX id_index ON toms(philo_id);")
         s = 0
         for line in open(file_in):
-            (philo_type,philo_name,rest) = line.split("\t")
-            fields = rest.split(" ",9)
-            if len(fields) == 10: 
+            (philo_type,philo_name,id,attrib) = line.split("\t",3)
+            fields = id.split(" ",8)
+            if len(fields) == 9: 
                 philo_id = " ".join(fields[:7])
-                raw_attr = fields[9]
-#                print raw_attr
+                raw_attr = attrib
+                #print raw_attr
                 r = {}
                 r["philo_type"] = philo_type
                 r["philo_name"] = philo_name
@@ -109,6 +109,7 @@ class SqlToms:
                 r["philo_seq"] = s
                 # I should add philo_parent here.  tricky to keep track of though.
                 attr = ast.literal_eval(raw_attr)
+                #print attr
                 for k in attr:
                     if k not in known_fields:
                         print k

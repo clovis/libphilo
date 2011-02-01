@@ -4,41 +4,59 @@ import os
 import sys
 import codecs
 
-class Record:
+class Record(object):
+	# A baseline implementation of a PhiloLogic Record class. 
 	def __init__(self,type,name,id):
 		self.type = type
 		self.name = name
-		self.id = id
+		self.id = id # Maybe page hack goes in here?  yeah, I think so.
 		self.attrib = {}
 
 	def __str__(self):
-		return str(self.id)
+		return "%s\t%s\t%s\t%s" % (self.type,self.name," ".join(str(i) for i in self.id),self.attrib)
+		
+	def __repr__(self):
+		return "Record('%s','%s',%s)" % (self.type,self.name,self.id)
 
-class Stack:
-	def __init__(self,types,parallel):
+class ARTFLRecord(Record):
+	# A record subclass with some hacks specific to the standard ARTFL index layout.
+	def __init__(self,type,name,id):
+		self = Record.__init__(self,type,name,id)
+	def __str__(self):
+		# Page hack goes in here.
+		return "%s\t%s\t%s\t%s" % (self.type,self.name," ".join(str(i) for i in self.id),self.attrib)
+
+class Stack(object):
+	def __init__(self,types,parallel,out=None,meta_out=None,factory=None):
 		self.v = []
+		self.v_max = []
 		self.types = types
 		self.virtual_types = {}
 		self.current_objects = []
 		self.depends_on = {}
+		self.out = out or sys.stdout
+		self.meta_out = meta_out or open("/dev/null","w")
+		self.factory = factory or Record
 		
 		prior_type = None
 		for type in self.types:
 			self.depends_on[type] = []
-			self.v.append(0)
+			self.v.append(0) 
+			self.v_max.append(0)
 			self.current_objects.append(None)
 			if prior_type:
 				self.depends_on[prior_type].append(type)
 			if type[-1].isdigit():
 				v_type = type[:-1]
 				if v_type not in self.virtual_types:
-					self.virtual_types[v_type] = type
+					self.virtual_types[v_type] = [type]
 				else:
 					self.virtual_types[v_type].append(type)
 			prior_type = type
 
 		for p_type in parallel:
 			self.v.append(0)
+			self.v_max.append(0)
 			self.types.append(p_type)
 			self.current_objects.append(None)
 			self.depends_on[p_type] = []
@@ -56,25 +74,39 @@ class Stack:
 			has_children = has_children or self._had_children(d_type)
 		return has_children
 		
+	def get_current(self,type):
+		if type in self.virtual_types:
+			real_types = self.virtual_types[type]
+			for r_type in real_types:				
+				i = self.types.index(r_type)
+				if self.current_objects[i]:
+					prev = i
+					continue
+				else:
+					break
+			if prev:
+				return self.current_objects[prev]
+			else:
+				return None
+		else:
+			i = self.types.index(type)
+			return self.current_objects[i]
 		
 	def push(self,type,name,value=None):
 		r = []
 		if type in self.virtual_types:
-			real_types = self.virtual_types[type]
+			real_types = self.virtual_types[type][:]
 			for r_type in real_types:
 				i = self.types.index(r_type)
 				if self.current_objects[i]:
 					continue
 				else: 
 					break
-			r.extend(self.push(r_type))
+			r.extend(self.push(r_type,name))
 
 		elif type in self.types:
 			i = self.types.index(type) # should this include parallel objcts?  if so, add them to types.  probably.
-			if self._had_children(type):
-				self.pull(type)
-				self.v[i] += 1
-			elif self.current_objects[i]:
+			if self._had_children(type) or self.current_objects[i]:
 				self.pull(type)
 
 			if value is not None:
@@ -89,7 +121,7 @@ class Stack:
 	def pull(self,type):
 		r = []
 		if type in self.virtual_types:
-			real_types = self.virtual_types[type]
+			real_types = self.virtual_types[type][:]
 			real_types.reverse()
 			for r_type in real_types:
 				i = self.types.index(r_type)
@@ -99,7 +131,7 @@ class Stack:
 
 		elif type in self.types:
 			i = self.types.index(type)
-			dependents = self.depends_on[type]
+			dependents = self.depends_on[type][:]
 			dependents.reverse()
 			for dep_type in dependents:
 				r.extend(self.pull(dep_type))
@@ -107,7 +139,10 @@ class Stack:
 				self.v[j] = 0
 			if self.current_objects[i]:
 				r.extend((self.current_objects[i],))
-				print r[-1]
+				print >> self.out, r[-1]
+				new_id = r[-1].id
+				for k,n in enumerate(new_id):
+					self.v_max[k] = max(self.v_max[k],n)
 				self.current_objects[i] = None
 				self.v[i] += 1  
 		return r

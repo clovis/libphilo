@@ -1,17 +1,23 @@
 #!/usr/bin/env python
-import xml.parsers.expat
 import re
 import os
 import sys
 import codecs
 import math
 import cPickle
-from philologic import OHCOVector,SqlToms,AbstractParser5
+from philologic import OHCOVector,SqlToms,Parser
+
+Parser = Parser.Parser
 
 #Initialize some globals
-sortkeys = "-k 1,1 -k 2,2n -k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n" # gnu sort command-line option.  Don't alter.
+
+sort_by_word = "-k 2,2"
+sort_by_id = "-k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n"
+
 blocksize = 2048 # index block size.  Don't alter.
 index_cutoff = 10 # index frequency cutoff.  Don't. alter.
+
+os.environ["LC_ALL"] = "C" # Exceedingly important to get uniform sort order.
 
 usage = "usage: forkload.py destination_path texts ..."
 
@@ -54,14 +60,14 @@ os.chdir(workdir)
 #We'll define our parse routine here, then call it below in the fork loop.
 def parsework(name,docid,path,raw,words,toms,sortedtoms,results):
         i = open(path)
-        o = codecs.open(raw, "w", "utf-8")
+        o = codecs.open(raw, "w")
         print "parsing %d : %s" % (docid,name)
-        parser = AbstractParser5.AbstractParser(name,docid)
+        parser = Parser(name,docid)
         r = parser.parse(i,o)
-        # parser.parse() writes a raw output stream to o.  returns a (maxobjects,counts) tuple.
-        wordcommand = "cat %s | egrep \"^word\" | sort -k 2,2 -k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n > %s" % (raw,words)
+        # parser.parse() writes a raw output stream to o.  returns a 9-field maximum vector.
+        wordcommand = "cat %s | egrep \"^word\" | sort %s %s > %s" % (raw,sort_by_word,sort_by_id,words)
         os.system(wordcommand)
-        tomscommand = "cat %s | egrep \"^doc|^div\" | sort -k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n > %s" % (raw,sortedtoms)
+        tomscommand = "cat %s | egrep \"^doc|^div\" | sort %s > %s" % (raw,sort_by_id,sortedtoms)
         os.system(tomscommand)
         i.close()
         o.close()
@@ -99,13 +105,9 @@ while done < total:
     pid,status = os.waitpid(0,0) # this hangs until any one child finishes.  should check status for problems.
     done += 1 
     workers -= 1
-    (vec,count_dict) = cPickle.load(open(procs[pid])) #load in the results from the child's parsework() function.
+    vec = cPickle.load(open(procs[pid])) #load in the results from the child's parsework() function.
     #print vec
     omax = [max(x,y) for x,y in zip(vec,omax)]
-    for word,freq in count_dict.items():  # use uniq -c for this in the future, on the final sorted word list.
-        totalcounts[word] = totalcounts.get(word,0) + freq 
-
-
 
 print omax
 print "%d total tokens in %d unique types." % (sum(x for x in totalcounts.values()),len(totalcounts.keys()))
@@ -113,12 +115,12 @@ print "parsed %d files successfully." % len(fileinfo)
     
 print "done sorting individual files.\nmerging... this can take a few minutes..."
 wordfilearg = " ".join(file["words"] for file in fileinfo)
-
-os.system("sort -m -k 2,2 -k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n %s > %s" % (wordfilearg, workdir + "/all.words.sorted") )
-os.system("sort -m -k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n %s > %s" % (" ".join(file["sortedtoms"] for file in fileinfo), workdir + "/all.toms.sorted") )
+words_result = workdir + "all.words.sorted"
+tomsfilearg = " ".join(file["sortedtoms"] for file in fileinfo)
+toms_result = workdir + "all.toms.sorted"
+os.system("sort -m %s %s %s > %s" % (wordfilearg,sort_by_word,sort_by_id, workdir + "all.words.sorted") )
+os.system("sort -m %s %s > %s" % (tomsfilearg,sort_by_id, workdir + "all.toms.sorted") )
 print "done merging.\nnow analyzing for compression."
-
-words = open(workdir + "/all.words.sorted")
 
 # First we need to calculate the width of each numeric field in the index, by taking the log base 2 and rounding up.
 vl = [max(int(math.ceil(math.log(float(x),2.0))),1) if x > 0 else 1 for x in omax]
@@ -127,13 +129,18 @@ print vl
 width = sum(x for x in vl)
 print str(width) + " bits wide."
 
-hits_per_block = (blocksize * 8) // width #that's a hard integer division.  watch out for this in python-3.0
+hits_per_block = (blocksize * 8) // width 
 freq1 = index_cutoff
 freq2 = 0
 offset = 0
 
+# unix one-liner for a frequency table
+os.system("cut -f 2 %s | uniq -c > %s" % ( workdir + "/all.words.sorted", workdir + "/all.frequencies") )
+
 # now scan over the frequency table to figure out how wide the frequency fields are, and how large the block file will be.
-for word,f in totalcounts.items():
+for line in open(workdir + "/all.frequencies"):
+    f, word = line.rsplit()
+    f = int(f)    
     if f > freq2:
         freq2 = f
     if f < index_cutoff:
@@ -165,6 +172,9 @@ print >> dbs, "#define BITLENGTHS {%s}" % ",".join(str(i) for i in vl)
 dbs.close()
 
 print "analysis done.  packing index.  this can take a few minutes..."
+
+#print "STOP."
+#sys.exit()
 os.system("pack4 " + workdir + "dbspecs4.h < " + workdir + "/all.words.sorted")
 
 print "all indices built. moving into place."

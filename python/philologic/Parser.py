@@ -161,6 +161,7 @@ class Parser:
 						# print "found"
 						self.v.get_current(ohco_type).attrib["byte_end"] = offset
 						self.v.pull(ohco_type)
+					break
 
 			if self.stack: # All elements get pulled of the stack..
 				if self.stack[-1].tag == name:

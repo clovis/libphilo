@@ -109,7 +109,7 @@ class Parser:
 						new_records = self.v.push(ohco_type,name) # set parent here.
 						parent = self.v.get_parent(ohco_type)
 						if parent:
-							self.v.get_current(ohco_type).attrib["parent"] = " ".join(str(i) for i in parent.id)
+							self.v.get_current(ohco_type).attrib["parent"] = " ".join(str(i) for i in parent.id[:7])
 					self.v.get_current(ohco_type).attrib['start'] = offset
 					# Set up metadata extractors for the new Record.
 					# These get called for each child node or text event, until you hit a new record.
@@ -193,6 +193,9 @@ class Parser:
 			if o:
 				o.attrib['end'] = self.v.v[7] # HACK
 				ohco_type = self.v.types[i]
+				parent = self.v.get_parent(ohco_type)
+				if parent:
+					o.attrib["parent"] = " ".join(str(i) for i in parent.id[:7])				
 				self.v.pull(ohco_type)
 		# return the maximum value for each field in the vector.
 		return self.v.v_max

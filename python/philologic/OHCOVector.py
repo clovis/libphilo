@@ -76,6 +76,7 @@ class Stack(object):
 		
 	def get_current(self,type):
 		if type in self.virtual_types:
+			prev = None
 			real_types = self.virtual_types[type]
 			for r_type in real_types:				
 				i = self.types.index(r_type)

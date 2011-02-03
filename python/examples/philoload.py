@@ -60,17 +60,19 @@ os.chdir(workdir)
 #We'll define our parse routine here, then call it below in the fork loop.
 def parsework(name,docid,path,raw,words,toms,sortedtoms,results):
 	i = open(path)
-	o = codecs.open(raw, "w")
+	o = open(raw, "w") # only print out raw utf-8, so we don't need a codec layer now.
 	print "parsing %d : %s" % (docid,name)
-	parser = Parser(name,docid)
-	r = parser.parse(i,o)
+	parser = Parser(name,docid,output=o)
+	r = parser.parse(i)
+	i.close()
+	o.close()
 	# parser.parse() writes a raw output stream to o.  returns a 9-field maximum vector.
 	wordcommand = "cat %s | egrep \"^word\" | sort %s %s > %s" % (raw,sort_by_word,sort_by_id,words)
 	os.system(wordcommand)
+	print wordcommand
 	tomscommand = "cat %s | egrep \"^doc|^div\" | sort %s > %s" % (raw,sort_by_id,sortedtoms)
+	print tomscommand
 	os.system(tomscommand)
-	i.close()
-	o.close()
 	return r
 
 print "parsing..."
@@ -110,7 +112,6 @@ while done < total:
     omax = [max(x,y) for x,y in zip(vec,omax)]
 
 print omax
-print "%d total tokens in %d unique types." % (sum(x for x in totalcounts.values()),len(totalcounts.keys()))
 print "parsed %d files successfully." % len(fileinfo)
     
 print "done sorting individual files.\nmerging... this can take a few minutes..."

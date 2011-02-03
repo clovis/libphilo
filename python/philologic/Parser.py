@@ -39,7 +39,7 @@ TEIMapping = {	".":"doc", # Always fire a doc against the document root.
 # Note that we supply the class and its configuration arguments, but don't construct them yet.
 # Full construction is carried out when new records are created, supplying the context and destination.
 
-TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author","author"), 
+TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author","author"),
                       (ContentExtractor,"./teiHeader/fileDesc/titleStmt/title", "title"),
                       (AttributeExtractor,".@xml:id","id")],
              "div" : [(ContentExtractor,"./head","head"),
@@ -49,7 +49,7 @@ TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author",
            }
 
 class Parser:
-	def __init__(self,filename,docid,format=ARTFLVector,parallel=ARTFLParallels,map=TEIMapping,metadata_paths = TEIPaths):
+	def __init__(self,filename,docid,format=ARTFLVector,parallel=ARTFLParallels,map=TEIMapping,metadata_paths = TEIPaths,output=None):
 		self.filename = filename
 		self.docid = docid
 		self.i = shlaxtree.ShlaxIngestor(target=self)
@@ -58,19 +58,19 @@ class Parser:
 		self.stack = []
 		self.map = map
 		self.v = OHCOVector.Stack(format[:],parallel[:]) # copies to make sure they don't get clobbered. next time you parse. 
+		if output is None:
+			output = open("/dev/null","w")
+		self.v.out = output
 		# OHCOVector should take an output file handle.
 		self.metadata_paths = metadata_paths
 		self.extractors = []
 
-	def parse(self,input,output):
+	def parse(self,input):
 		"""Top level function for reading a file and printing out the output."""
 		self.input = input
-#		self.out = output
-		self.v.out = output
 		for line in input:
 			self.i.feed(line)
-		self.i.close()
-		return self.v.v_max
+		return self.i.close()
 
 	def feed(self,*event):
 		"""Consumes a single event from the parse stream.
@@ -104,8 +104,12 @@ class Parser:
 					if new_element == self.root:
 						new_records = self.v.push(ohco_type,name,self.docid)
 						self.v.get_current(ohco_type).attrib["filename"] = self.filename
+						# If we have data from a preprocessor, we should use it here.						
 					else:
-						new_records = self.v.push(ohco_type,name)
+						new_records = self.v.push(ohco_type,name) # set parent here.
+						parent = self.v.get_parent(ohco_type)
+						if parent:
+							self.v.get_current(ohco_type).attrib["parent"] = " ".join(str(i) for i in parent.id)
 					self.v.get_current(ohco_type).attrib['byte_start'] = offset
 					# Set up metadata extractors for the new Record.
 					# These get called for each child node or text event, until you hit a new record.
@@ -139,12 +143,12 @@ class Parser:
 				if t.group(1):
 					# Should push a sentence here if I'm not in one... all words occur in sentences.
 					self.v.push("word",t.group(1)) 
-					self.v.current_objects[6].id[7] = offset + t.start(1) # HACK to set the byte offset.
+					self.v.get_current("word").id[7] = offset + t.start(1) # HACK to set the byte offset.
 					self.v.pull("word") 
 				elif t.group(2): 
 					if self.v.current_objects[5]: # Punctuation is the end of a sentence that began a few words ago.  So we pull first.  That means the byte position of a sentence is where it starts, not where it ends, oddly enough.
-						self.v.current_objects[5].name = t.group(2) #HACK to set punctuation mark before pull.
-						self.v.current_objects[5].id[7] = offset + t.start(2) # HACK to set byte offset before pull.
+						self.v.get_current("sent").name = t.group(2) #HACK to set punctuation mark before pull.
+						self.v.get_current("sent").id[7] = offset + t.start(2) # HACK to set byte offset before pull.
 						self.v.pull("sent") 
 					self.v.push("sent",".") # period by default, change it if we see something else.
 
@@ -177,14 +181,16 @@ class Parser:
 
 
 	def close(self):
+		"""Finishes parsing a document, and emits any objects still extant.
+		
+		Returns a max_id vector suitable for building a compression bit-spec in a loader."""
 		# pull all extant objects.
 		objects = [n for n in enumerate(self.v.current_objects)]
 		objects.reverse()
 		for i,o in objects:
 			if o:
-				# should set byte_end here.
 				o.attrib['byte_end'] = self.v.v[7] # HACK
-				ohco_type = self.v.types[i]				
+				ohco_type = self.v.types[i]
 				self.v.pull(ohco_type)
 		# return the maximum value for each field in the vector.
 		return self.v.v_max
@@ -197,6 +203,6 @@ if __name__ == "__main__":
     for docid, filename in enumerate(files,1):
         f = open(filename)
         print >> sys.stderr, "%d: parsing %s" % (docid,filename)
-        p = Parser(filename,docid)
-        p.parse(f,sys.stdout)
+        p = Parser(filename,docid, output=sys.stdout)
+        p.parse(f)
         #print >> sys.stderr, "%s\n%d total tokens in %d unique types." % (spec,sum(counts.values()),len(counts.keys()))

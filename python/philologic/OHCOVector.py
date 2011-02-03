@@ -91,6 +91,16 @@ class Stack(object):
 		else:
 			i = self.types.index(type)
 			return self.current_objects[i]
+	
+	def get_parent(self,type):
+		this_obj = self.get_current(type)
+		parent = None
+		for obj in self.current_objects:
+			if obj == this_obj:
+				break
+			else:
+				parent = obj
+		return parent
 		
 	def push(self,type,name,value=None):
 		r = []

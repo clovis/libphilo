@@ -69,9 +69,9 @@ def parsework(name,docid,path,raw,words,toms,sortedtoms,results):
 	# parser.parse() writes a raw output stream to o.  returns a 9-field maximum vector.
 	wordcommand = "cat %s | egrep \"^word\" | sort %s %s > %s" % (raw,sort_by_word,sort_by_id,words)
 	os.system(wordcommand)
-	print wordcommand
+#	print wordcommand
 	tomscommand = "cat %s | egrep \"^doc|^div\" | sort %s > %s" % (raw,sort_by_id,sortedtoms)
-	print tomscommand
+#	print tomscommand
 	os.system(tomscommand)
 	return r
 

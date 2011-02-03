@@ -110,7 +110,7 @@ class Parser:
 						parent = self.v.get_parent(ohco_type)
 						if parent:
 							self.v.get_current(ohco_type).attrib["parent"] = " ".join(str(i) for i in parent.id)
-					self.v.get_current(ohco_type).attrib['byte_start'] = offset
+					self.v.get_current(ohco_type).attrib['start'] = offset
 					# Set up metadata extractors for the new Record.
 					# These get called for each child node or text event, until you hit a new record.
 					# We could keep a stack of extractors for multiple simultaneous 
@@ -159,7 +159,8 @@ class Parser:
 					# print "matching stack %s against %s for closure" % (self.stack,xpath)
 					if current_element in self.root.findall(xpath):
 						# print "found"
-						self.v.get_current(ohco_type).attrib["byte_end"] = offset
+						if self.v.get_current(ohco_type):
+							self.v.get_current(ohco_type).attrib["end"] = offset
 						self.v.pull(ohco_type)
 						break 
 
@@ -190,7 +191,7 @@ class Parser:
 		objects.reverse()
 		for i,o in objects:
 			if o:
-				o.attrib['byte_end'] = self.v.v[7] # HACK
+				o.attrib['end'] = self.v.v[7] # HACK
 				ohco_type = self.v.types[i]
 				self.v.pull(ohco_type)
 		# return the maximum value for each field in the vector.

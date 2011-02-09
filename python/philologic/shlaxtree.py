@@ -120,21 +120,28 @@ class ShlaxTreeDriver():
                 else:
                     self.target.data(content)
             elif self.in_word:
-                self.target.start(self.wtag,self.watt)
                 word_end = re.search(self.punct_re,content) # Modify tokenization function here
                 if word_end:
+
                     breakpoint = word_end.start()
-                    self.target.data(content[:breakpoint])
-                    self.target.end(self.wtag)
+                    word_seg = content[:breakpoint]
+                    if len(word_seg) > 0:
+                        self.target.start(self.wtag,self.watt)
+                        self.target.data(word_seg)
+                        self.target.end(self.wtag)
                     self.in_word = False
                     rest = content[breakpoint:]
                     # should check here to make sure we haven't passed two words, I suppose.
-                    while self.offsets and offset > self.offsets[0]:
+                    while self.offsets and offset + len(word_seg) > self.offsets[0]:
                         self.offsets.pop(0)
                     self.feed("text",rest,offset + breakpoint, None,None)
                 else:
-                    self.target.data(content)
-                    self.target.end(self.wtag)
+                    if len(content) == 0:
+                        self.target.data(content)
+                    else:
+                        self.target.start(self.wtag,self.watt)
+                        self.target.data(content)                    
+                        self.target.end(self.wtag)
 
     def close(self):
         return self.target.close()

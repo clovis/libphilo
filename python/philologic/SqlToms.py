@@ -83,10 +83,71 @@ class SqlToms:
         #should take object as a list, not string.
         obj_string = hit_to_string(obj,self.width)
         c = self.dbh.cursor()
-        c.execute("SELECT * FROM toms WHERE parent=?;",(obj_string,))
+        c.execute("SELECT * FROM toms WHERE parent=? ORDER BY philo_seq;",(obj_string,))
         for row in c:
             yield row
                 
+    def get_parent(self,obj):
+        parent = obj["parent"]
+        if not parent:
+            return []
+        else:
+            p = str_to_hit(parent)
+            return self[p]
+        
+    def get_siblings(self,obj):
+        p = self.get_parent(obj)
+        if not p:
+        	return []
+        sibs = self.get_children(p)
+        return sibs
+
+    def get_prev_next(self,obj):
+        current_obj = obj
+        prev = None
+        while current_obj:
+            my_siblings = list(self.get_siblings(current_obj))
+            if not my_siblings:
+            	break
+            my_position = my_siblings.index(current_obj)
+            if my_position > 0: # if we have a sibling to the left:
+                current_obj = my_siblings[my_position - 1]
+                prev = current_obj
+                while True: # descend to its RIGHTmost leaf
+                    my_children = list(self.get_children(current_obj))
+                    if my_children:
+                        current_obj = my_children[-1]
+                        prev = current_obj
+                    else:
+                        break
+                break
+            else: # go up a level
+                current_obj = self.get_parent(current_obj)
+                
+        #setup for next seek.  Mostly the same.
+        current_obj = obj
+        next = None
+        while current_obj:
+            my_siblings = list(self.get_siblings(current_obj))
+            if not my_siblings:
+            	break
+            my_position = my_siblings.index(current_obj)
+            if my_position < len(my_siblings) - 1: # if we have a sibling on the right
+                current_obj = my_siblings[my_position + 1]
+                next = current_obj
+                while True: # descend to its LEFTmost leaf
+                    my_children = list(self.get_children(current_obj))
+                    if my_children:
+                        current_obj = my_children[0]
+                        next = current_obj
+                    else:
+                        break
+                break
+            else:
+                current_obj = self.get_parent(current_obj)
+    
+        return prev,next
+
     def mktoms_sql(self,file_in):
         known_fields = []
         db = self.dbh
@@ -131,6 +192,8 @@ class SqlToms:
         db.commit()
 
 def hit_to_string(hit,width):
+    if isinstance(hit,sqlite3.Row):
+        hit = hit["philo_id"]   
     if isinstance(hit,str):
         hit = [int(x) for x in hit.split(" ")]
     if isinstance(hit,int):

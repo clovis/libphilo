@@ -8,7 +8,7 @@ CC= gcc
 PH_BUILDENV = 
 PH_LDSEARCHFLAGS = 
 
-all: 	search4	libphilo.dylib db/pack4
+all: 	search4 db/pack4
 
 db/pack4: db/pack.c db/pack.h db/db.c db/db.h
 	(cd db; make pack4)

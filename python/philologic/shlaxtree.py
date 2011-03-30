@@ -5,6 +5,13 @@ import sys
 
 et = ElementTree
 
+def parse(file):
+    tokenizer = ShlaxTreeDriver()
+    parser = ShlaxIngestor(target=tokenizer)
+    for line in file:
+        parser.feed(line)
+    return parser.close()
+
 def TokenizingParser(start = 0, offsets = None):
     if offsets is None:
         offsets = []
@@ -166,6 +173,8 @@ class ShlaxTreeBuilder():
     def data(self,data):
         if self.done is not False:
             return
+        if not self.stack:
+            return
         current_element = self.stack[-1]
         n_children = len(current_element)
         if n_children == 0:
@@ -191,6 +200,8 @@ class ShlaxTreeBuilder():
     def end(self,tag):
         if self.done is not False:
             return
+        if not self.stack:
+            return
         last_element = self.stack[-1]
         if last_element.tag == tag:
             last_element = self.stack.pop()     
@@ -199,3 +210,10 @@ class ShlaxTreeBuilder():
         if not self.stack:
            self.done = last_element
         return last_element
+
+if __name__ == "__main__":
+    import sys
+    for file in sys.argv[1:]:
+        root = parse(open(file))
+        print "parsed %s successfully." % file
+        print et.tostring(root,encoding="utf8")

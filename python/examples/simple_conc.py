@@ -15,8 +15,9 @@ while not q.done:
     q.update() # have to check if the query is completed yet.
 
 for hit in q:
-    byte_offset = hit[6]
-    doc_id = hit[0] 
+    doc_id = q.get_doc(hit)
+    offsets = q.get_bytes(hit)
+    byte_offset = offsets[0]
     filename = db.toms[doc_id]["filename"]
     author = db.toms[doc_id]["author"]
     title = db.toms[doc_id]["title"]

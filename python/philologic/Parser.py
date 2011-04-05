@@ -39,7 +39,7 @@ TEIMapping = {	".":"doc", # Always fire a doc against the document root.
 # Note that we supply the class and its configuration arguments, but don't construct them yet.
 # Full construction is carried out when new records are created, supplying the context and destination.
 
-TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/sourceDesc/bibl/author[@type='marc100']","author"),
+TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author","author"),
                       (ContentExtractor,"./teiHeader/fileDesc/titleStmt/title", "title"),
                       (ContentExtractor,"./teiHeader/profileDesc/creation/date", "date"),                      
                       (AttributeExtractor,".@xml:id","id")],
@@ -144,7 +144,7 @@ class Parser:
 			for t in tokens:
 				if t.group(1):
 					# Should push a sentence here if I'm not in one... all words occur in sentences.
-					self.v.push("word",t.group(1)) 
+					self.v.push("word",t.group(1).lower()) 
 					self.v.get_current("word").id[7] = offset + t.start(1) # HACK to set the byte offset.
 					self.v.pull("word") 
 				elif t.group(2): 
@@ -205,10 +205,11 @@ class Parser:
 
 if __name__ == "__main__":
     import sys
+    import codecs
     did = 1
     files = sys.argv[1:]
     for docid, filename in enumerate(files,1):
-        f = open(filename)
+        f = codecs.open(filename,"r","utf-8")
         print >> sys.stderr, "%d: parsing %s" % (docid,filename)
         p = Parser({"filename":filename},docid, output=sys.stdout)
         p.parse(f)

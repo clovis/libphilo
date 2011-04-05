@@ -62,7 +62,7 @@ def parsework(name,docid,path,raw,words,toms,sortedtoms,results):
 	i = open(path)
 	o = open(raw, "w") # only print out raw utf-8, so we don't need a codec layer now.
 	print "parsing %d : %s" % (docid,name)
-	parser = Parser(name,docid,output=o)
+	parser = Parser({"filename":name},docid,output=o)
 	r = parser.parse(i)
 	i.close()
 	o.close()

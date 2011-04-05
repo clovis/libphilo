@@ -39,8 +39,9 @@ TEIMapping = {	".":"doc", # Always fire a doc against the document root.
 # Note that we supply the class and its configuration arguments, but don't construct them yet.
 # Full construction is carried out when new records are created, supplying the context and destination.
 
-TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author","author"),
+TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/sourceDesc/bibl/author[@type='marc100']","author"),
                       (ContentExtractor,"./teiHeader/fileDesc/titleStmt/title", "title"),
+                      (ContentExtractor,"./teiHeader/profileDesc/creation/date", "date"),                      
                       (AttributeExtractor,".@xml:id","id")],
              "div" : [(ContentExtractor,"./head","head"),
              		  (AttributeExtractor,".@n","n"),
@@ -49,8 +50,8 @@ TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author",
            }
 
 class Parser:
-	def __init__(self,filename,docid,format=ARTFLVector,parallel=ARTFLParallels,map=TEIMapping,metadata_paths = TEIPaths,output=None):
-		self.filename = filename
+	def __init__(self,known_metadata,docid,format=ARTFLVector,parallel=ARTFLParallels,map=TEIMapping,metadata_paths = TEIPaths,output=None):
+		self.known_metadata = known_metadata
 		self.docid = docid
 		self.i = shlaxtree.ShlaxIngestor(target=self)
 		self.tree = None
@@ -103,7 +104,8 @@ class Parser:
 					#	print "pushing %s" % ohco_type
 					if new_element == self.root:
 						new_records = self.v.push(ohco_type,name,self.docid)
-						self.v.get_current(ohco_type).attrib["filename"] = self.filename
+						for key,value in self.known_metadata.items():
+						    self.v.get_current(ohco_type).attrib[key] = value
 						# If we have data from a preprocessor, we should use it here.						
 					else:
 						new_records = self.v.push(ohco_type,name) # set parent here.
@@ -208,6 +210,6 @@ if __name__ == "__main__":
     for docid, filename in enumerate(files,1):
         f = open(filename)
         print >> sys.stderr, "%d: parsing %s" % (docid,filename)
-        p = Parser(filename,docid, output=sys.stdout)
+        p = Parser({"filename":filename},docid, output=sys.stdout)
         p.parse(f)
         #print >> sys.stderr, "%s\n%d total tokens in %d unique types." % (spec,sum(counts.values()),len(counts.keys()))

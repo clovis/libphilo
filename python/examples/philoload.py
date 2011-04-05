@@ -50,6 +50,7 @@ fileinfo = [{"orig":os.path.abspath(x),
              "words":workdir + os.path.basename(x) + ".words.sorted",
              "toms":workdir + os.path.basename(x) + ".toms",
              "sortedtoms":workdir + os.path.basename(x) + ".toms.sorted",
+             "count":workdir + os.path.basename(x) + ".count",
              "results":workdir + os.path.basename(x) + ".results"} for n,x in enumerate(texts)]
 
 print "copying raw data into place..."
@@ -59,22 +60,24 @@ for t in fileinfo:
 os.chdir(workdir)
 
 #We'll define our parse routine here, then call it below in the fork loop.
-def parsework(name,docid,path,raw,words,toms,sortedtoms,results):
-	i = codecs.open(path,"r",)
-	o = codecs.open(raw, "w",) # only print out raw utf-8, so we don't need a codec layer now.
-	print "parsing %d : %s" % (docid,name)
-	parser = Parser({"filename":name},docid,output=o)
-	r = parser.parse(i)
-	i.close()
-	o.close()
-	# parser.parse() writes a raw output stream to o.  returns a 9-field maximum vector.
-	wordcommand = "cat %s | egrep \"^word\" | sort %s %s > %s" % (raw,sort_by_word,sort_by_id,words)
-	os.system(wordcommand)
-#	print wordcommand
-	tomscommand = "cat %s | egrep \"^doc|^div\" | sort %s > %s" % (raw,sort_by_id,sortedtoms)
-#	print tomscommand
-	os.system(tomscommand)
-	return r
+def parsework(name,docid,path,raw,words,toms,sortedtoms,results,count):
+    i = codecs.open(path,"r",)
+    o = codecs.open(raw, "w",) # only print out raw utf-8, so we don't need a codec layer now.
+    print "parsing %d : %s" % (docid,name)
+    parser = Parser({"filename":name},docid,output=o)
+    r = parser.parse(i)
+    i.close()
+    o.close()
+
+    wordcommand = "cat %s | egrep \"^word\" | sort %s %s > %s" % (raw,sort_by_word,sort_by_id,words)
+    os.system(wordcommand)
+
+    countcommand = "cat %s | wc -l > %s" % (words,count)
+    os.system(countcommand)
+
+    tomscommand = "cat %s | egrep \"^doc|^div\" | sort %s > %s" % (raw,sort_by_id,sortedtoms)
+    os.system(tomscommand)
+    return r
 
 print "parsing..."
 max_workers = 8
@@ -99,7 +102,7 @@ while done < total:
             procs[pid] = text["results"] # we need to know where to grab the results from.
             workers += 1
         if not pid: # the child process parses then exits.
-            r = parsework(text["name"],text["id"],text["newpath"],text["raw"],text["words"],text["toms"],text["sortedtoms"],text["results"])
+            r = parsework(text["name"],text["id"],text["newpath"],text["raw"],text["words"],text["toms"],text["sortedtoms"],text["results"],text["count"])
             rf = open(text["results"],"w")
             cPickle.dump(r,rf) # write the result out.
             rf.close()
@@ -137,7 +140,7 @@ freq2 = 0
 offset = 0
 
 # unix one-liner for a frequency table
-os.system("cut -f 2 %s | uniq -c > %s" % ( workdir + "/all.words.sorted", workdir + "/all.frequencies") )
+os.system("cut -f 2 %s | uniq -c | sort -rn -k 1,1> %s" % ( workdir + "/all.words.sorted", workdir + "/all.frequencies") )
 
 # now scan over the frequency table to figure out how wide (in bits) the frequency fields are, and how large the block file will be.
 for line in open(workdir + "/all.frequencies"):

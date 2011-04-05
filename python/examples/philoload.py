@@ -18,6 +18,7 @@ blocksize = 2048 # index block size.  Don't alter.
 index_cutoff = 10 # index frequency cutoff.  Don't. alter.
 
 os.environ["LC_ALL"] = "C" # Exceedingly important to get uniform sort order.
+os.environ["PYTHONIOENCODING"] = "utf-8"
 
 usage = "usage: forkload.py destination_path texts ..."
 
@@ -59,8 +60,8 @@ os.chdir(workdir)
 
 #We'll define our parse routine here, then call it below in the fork loop.
 def parsework(name,docid,path,raw,words,toms,sortedtoms,results):
-	i = open(path)
-	o = open(raw, "w") # only print out raw utf-8, so we don't need a codec layer now.
+	i = codecs.open(path,"r",)
+	o = codecs.open(raw, "w",) # only print out raw utf-8, so we don't need a codec layer now.
 	print "parsing %d : %s" % (docid,name)
 	parser = Parser({"filename":name},docid,output=o)
 	r = parser.parse(i)

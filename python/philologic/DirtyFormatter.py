@@ -25,6 +25,32 @@ class Formatter:
         self.context = []
         self.preserve = None
 
+    def iter_format(self,data):
+        self.buffer = ""
+        self.context = []
+        parser = shlax.parsestring(data)
+        for n in parser:
+            if n.type == "text":
+                self.handle_data(n.content)
+                yield self.buffer
+                self.buffer = ""
+            elif n.type == "StartTag":
+                self.handle_starttag(n.name,n.attributes.items())
+                yield self.buffer
+                self.buffer = ""
+            elif n.type == "EndTag":
+                self.handle_endtag(n.name)
+                yield self.buffer
+                self.buffer = ""
+        #self.close() 
+        #don't close()--croaks on EOF mid-event, which we should assume will happen.
+        #instead, we just want to silently discard unparseable data, and close all open tags.
+        for tag in self.context:
+            if tag in self.table:
+                self.buffer += self.table["/" + tag]
+                yield self.buffer
+                self.buffer = ""                
+
     def format(self,data):
         self.buffer = ""
         self.context = []

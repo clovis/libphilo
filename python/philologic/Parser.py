@@ -140,7 +140,7 @@ class Parser:
 			# Tokenize and emit tokens.  Still a bit hackish.
 			# TODO: Tokenizer object shared with output formatter. 
 			# Should push a sentence by default here, if we're in a new para/div/doc.  sent byte ordering is not quite right.
-			tokens = re.finditer(ur"([\w\'\u2019]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
+			tokens = re.finditer(r"([^ \.;:?!\"\n]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
 			for t in tokens:
 				if t.group(1):
 					# Should push a sentence here if I'm not in one... all words occur in sentences.
@@ -205,11 +205,10 @@ class Parser:
 
 if __name__ == "__main__":
     import sys
-    import codecs
     did = 1
     files = sys.argv[1:]
     for docid, filename in enumerate(files,1):
-        f = codecs.open(filename,"r","utf-8")
+        f = open(filename)
         print >> sys.stderr, "%d: parsing %s" % (docid,filename)
         p = Parser({"filename":filename},docid, output=sys.stdout)
         p.parse(f)

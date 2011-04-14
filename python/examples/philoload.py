@@ -143,8 +143,8 @@ offset = 0
 os.system("cut -f 2 %s | uniq -c | sort -rn -k 1,1> %s" % ( workdir + "/all.words.sorted", workdir + "/all.frequencies") )
 
 # now scan over the frequency table to figure out how wide (in bits) the frequency fields are, and how large the block file will be.
-for line in open(workdir + "/all.frequencies"):
-    f, word = line.rsplit() # uniq -c pads output on the left side, so we split on the right.
+for line in open(workdir + "/all.frequencies"):    
+    f, word = line.rsplit(" ",1) # uniq -c pads output on the left side, so we split on the right.
     f = int(f)    
     if f > freq2:
         freq2 = f
@@ -189,6 +189,11 @@ os.system("mv index.1 ../index.1")
 print "building metadata db."
 toms = SqlToms.SqlToms("../toms.db",7)
 toms.mktoms_sql(workdir + "/all.toms.sorted")
+toms.dbh.execute("ALTER TABLE toms ADD COLUMN word_count;")
+for f in fileinfo:
+	count = int(open(f["count"]).read())
+	toms.dbh.execute("UPDATE toms SET word_count = %d WHERE filename = '%s';" % (count,f["name"]))
+toms.dbh.commit()
 os.mkdir(destination + "/src/")
 os.system("mv dbspecs4.h ../src/dbspecs4.h")
 print "done."

@@ -148,10 +148,10 @@ if __name__ == "__main__":
         text = codecs.open(filename,"r","utf-8")
         text.readline()
         for line in text:
-        if re.match("</teiHeader>",line):
-            break
-        else:
-            header.append(line)
+            if re.match("</teiHeader>",line):
+                break
+            else:
+                header.append(line)
         record = extract(filename,header) 
         outbib.append(record)
     

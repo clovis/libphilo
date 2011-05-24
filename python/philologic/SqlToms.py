@@ -46,6 +46,8 @@ class SqlToms:
                 if k == "philo_type":
                     qstring += " %s == ?" % (k)
                     vs.append(v)
+                elif v == "None":
+                    qstring += " %s IS NULL" % (k)                    
                 else:
                     qstring += " %s LIKE ?" % (k) # forgot the AND
                     vs.append("%" + v + "%")

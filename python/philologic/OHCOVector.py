@@ -4,159 +4,307 @@ import os
 import sys
 import codecs
 
-class Record(object):
-	# A baseline implementation of a PhiloLogic Record class. 
-	def __init__(self,type,name,id):
-		self.type = type
-		self.name = name
-		self.id = id # Maybe page hack goes in here?  yeah, I think so.
-		self.attrib = {}
+class ParallelRecord(object):
+    def __init__(self,type,name,id):
+        self.type = type
+        self.name = name
+        self.id = id
+        self.attrib = {}
+        
+    def __str__(self):
+        print_id = [self.id[0], 0, 0, 0, 0, 0, 0, 0, self.id[1]]
+        return "%s\t%s\t%s\t%s" % (self.type, self.name, " ".join(str(i) for i in print_id), self.attrib)
 
-	def __str__(self):
-		return "%s\t%s\t%s\t%s" % (self.type,self.name," ".join(str(i) for i in self.id),self.attrib)
-		
-	def __repr__(self):
-		return "Record('%s','%s',%s)" % (self.type,self.name,self.id)
+class CompoundRecord(object):
+    def __init__(self,type,name,id):
+        self.type = type
+        self.name = name
+        self.id = id # Maybe page hack goes in here?  yeah, I think so.
+        self.attrib = {}
+
+    def __str__(self):
+        print_id = self.id
+        print_id.append(self.attrib.get("byte_start",0))
+        print_id.append(self.attrib.get("page",0))
+        return "%s\t%s\t%s\t%s" % (self.type,self.name," ".join(str(i) for i in print_id),self.attrib)
+
+class CompoundStack(object):
+    def __init__(self,types,parallel,out=None,factory=CompoundRecord,p_factory = ParallelRecord):
+        self.stack = NewStack(types,out,factory)
+        self.p_type = parallel
+        self.current_p = None
+        self.p = 0
+        self.p_factory = p_factory
+        
+    def __getitem__(self,n):
+        if n == self.p_type:
+            return self.current_p
+        else:
+            return self.stack[n]
+            
+    def push(self,type,name,byte):
+        if type == self.p_type:
+            if self.current_p:
+                self.current_p.attrib["end_byte"] = byte
+                print self.current_p
+            self.p += 1
+            self.current_p = self.p_factory(type,name,[self.stack.v[0],self.p])
+            self.current_p.attrib["start_byte"] = byte
+            return self.current_p    
+        else:
+            self.stack.push(type,name,byte)
+    
+    def pull(self,type,name,byte):
+        if type == self.p_type:
+            pass
+        else:
+            return self.stack.pull(type,name,byte)
+    
+class NewStack(object):            
+    def __init__(self,types,out=None,factory=None):
+        self.v = []
+        self.v_max = []
+        self.types = types
+        self.v_types = {}
+        self.current_objects = []
+        self.out = out or sys.stdout
+        self.factory = factory or Record
+        
+        for type in self.types:
+            self.v.append(0)
+            self.v_max.append(0)
+            if type[-1].isdigit():
+                v_type = type[:-1]
+                if v_type not in self.v_types:
+                    self.v_types[v_type] = [type]
+                else:
+                    self.v_types[v_type].append(type)
+
+    def __getitem__(self,n):
+        i = self.index(n)
+        if i < len(self):
+            return self.current_objects[i]
+        else:
+            raise IndexError
+
+    def __len__(self):
+        return len(self.current_objects)
+
+    def __contains__(self,n):
+        i = self.index(n)
+        if len(self) > i:
+            return True
+        else:
+            return False
+
+    def index(self,type):        
+        if type in self.types:
+            return self.types.index(type)
+        elif type in self.v_types:
+            possible_types = self.v_types
+            possible_types.reverse()
+            for t in possible_types:
+                i = self.types.index(t)
+                if len(self.current_objects) > i:
+                    return i
+        raise IndexError
+
+    def push(self,type,name,byte):
+        # create any necessary virtual ancestors
+        # print self.current_objects
+        i = self.index(type)
+        while len(self) < i:
+            self.push(self.types[len(self)],"__philo_virtual",byte)
+        # if we're currently in a node, we have to pull it first. and [implicitly] all its children
+        if type in self:
+            self.pull(type,"__philo_break",byte)
+        # now we can create a new node.  increment field here ONLY TO MARK INITIALIZATION
+        if self.v[i] == 0:
+            self.v[i] = 1
+        r = self.factory(type,name,self.v[:])
+        r.attrib["byte_start"] = byte
+        self.current_objects.append(r)
+        
+    def pull(self,type,name,byte):
+        # have to pull all descendants. recursively? no, too much overhead.  reverse order, real types.
+        i = self.index(type)
+        if type in self.types:
+            if type in self:
+                descendants = self.types[i+1:]
+                descendants.reverse()
+                for d in descendants:
+                    self.pull(d,"__philo_break",byte)
+                # print
+                self.current_objects[i].attrib["byte_end"] = byte
+                print >> self.out, self.current_objects[i]
+                # we know all descendants have already been pulled.  so only have to reset the next one. and increment.
+                self.v[i] += 1
+                if (i + 1) < len(self.v): # check to see we're not in a leaf node
+                    self.v[i + 1] = 0 # then set child to 0
+                self.current_objects.pop()
+        # if virtual type, have to identify a non-virtual node.
+        elif type in self.v_types:
+            possible_types = self.v_types
+            possible_types.reverse()
+            for t in possible_types:
+                if self[t] != "__philo_virtual":
+                    self.pull(t,name,byte)
+                    break
+            
+
+class Record(object):
+    # A baseline implementation of a PhiloLogic Record class. 
+    def __init__(self,type,name,id):
+        self.type = type
+        self.name = name
+        self.id = id # Maybe page hack goes in here?  yeah, I think so.
+        self.attrib = {}
+
+    def __str__(self):
+        return "%s\t%s\t%s\t%s" % (self.type,self.name," ".join(str(i) for i in self.id),self.attrib)
+        
+    def __repr__(self):
+        return "Record('%s','%s',%s)" % (self.type,self.name,self.id)
 
 class ARTFLRecord(Record):
-	# A record subclass with some hacks specific to the standard ARTFL index layout.
-	def __init__(self,type,name,id):
-		self = Record.__init__(self,type,name,id)
-	def __str__(self):
-		# Page hack goes in here.
-		return "%s\t%s\t%s\t%s" % (self.type,self.name," ".join(str(i) for i in self.id),self.attrib)
+    # A record subclass with some hacks specific to the standard ARTFL index layout.
+    def __init__(self,type,name,id):
+        self = Record.__init__(self,type,name,id)
+    def __str__(self):
+        # Page hack goes in here.
+        return "%s\t%s\t%s\t%s" % (self.type,self.name," ".join(str(i) for i in self.id),self.attrib)
 
 class Stack(object):
-	def __init__(self,types,parallel,out=None,meta_out=None,factory=None):
-		self.v = []
-		self.v_max = []
-		self.types = types
-		self.virtual_types = {}
-		self.current_objects = []
-		self.depends_on = {}
-		self.out = out or sys.stdout
-		self.meta_out = meta_out or open("/dev/null","w")
-		self.factory = factory or Record
-		
-		prior_type = None
-		for type in self.types:
-			self.depends_on[type] = []
-			self.v.append(0) 
-			self.v_max.append(0)
-			self.current_objects.append(None)
-			if prior_type:
-				self.depends_on[prior_type].append(type)
-			if type[-1].isdigit():
-				v_type = type[:-1]
-				if v_type not in self.virtual_types:
-					self.virtual_types[v_type] = [type]
-				else:
-					self.virtual_types[v_type].append(type)
-			prior_type = type
+    def __init__(self,types,parallel,out=None,meta_out=None,factory=None):
+        self.v = []
+        self.v_max = []
+        self.types = types
+        self.virtual_types = {}
+        self.current_objects = []
+        self.depends_on = {}
+        self.out = out or sys.stdout
+        self.meta_out = meta_out or open("/dev/null","w")
+        self.factory = factory or Record
+        
+        prior_type = None
+        for type in self.types:
+            self.depends_on[type] = []
+            self.v.append(0) 
+            self.v_max.append(0)
+            self.current_objects.append(None)
+            if prior_type:
+                self.depends_on[prior_type].append(type)
+            if type[-1].isdigit():
+                v_type = type[:-1]
+                if v_type not in self.virtual_types:
+                    self.virtual_types[v_type] = [type]
+                else:
+                    self.virtual_types[v_type].append(type)
+            prior_type = type
 
-		for p_type in parallel:
-			self.v.append(0)
-			self.v_max.append(0)
-			self.types.append(p_type)
-			self.current_objects.append(None)
-			self.depends_on[p_type] = []
-			root_type = self.types[0]
-			self.depends_on[root_type].append(p_type)
+        for p_type in parallel:
+            self.v.append(0)
+            self.v_max.append(0)
+            self.types.append(p_type)
+            self.current_objects.append(None)
+            self.depends_on[p_type] = []
+            root_type = self.types[0]
+            self.depends_on[root_type].append(p_type)
 
-	def _had_children(self,type): #only legal on real types...just a helper function.
-		has_children = False
-		i = self.types.index(type)
-		dep_types = self.depends_on[type]
-		for d_type in dep_types:
-			d_i = self.types.index(d_type)
-			if self.v[d_i] > 0:
-				has_children = True
-			has_children = has_children or self._had_children(d_type)
-		return has_children
-		
-	def get_current(self,type):
-		if type in self.virtual_types:
-			prev = None
-			real_types = self.virtual_types[type]
-			for r_type in real_types:				
-				i = self.types.index(r_type)
-				if self.current_objects[i]:
-					prev = i
-					continue
-				else:
-					break
-			if prev:
-				return self.current_objects[prev]
-			else:
-				return None
-		else:
-			i = self.types.index(type)
-			return self.current_objects[i]
-	
-	def get_parent(self,type):
-		this_obj = self.get_current(type)
-		parent = None
-		for obj in self.current_objects:
-			if obj == this_obj:
-				break
-			else:
-				parent = obj
-		return parent
-		
-	def push(self,type,name,value=None):
-		r = []
-		if type in self.virtual_types:
-			real_types = self.virtual_types[type][:]
-			for r_type in real_types:
-				i = self.types.index(r_type)
-				if self.current_objects[i]:
-					continue
-				else: 
-					break
-			r.extend(self.push(r_type,name))
+    def _had_children(self,type): #only legal on real types...just a helper function.
+        has_children = False
+        i = self.types.index(type)
+        dep_types = self.depends_on[type]
+        for d_type in dep_types:
+            d_i = self.types.index(d_type)
+            if self.v[d_i] > 0:
+                has_children = True
+            has_children = has_children or self._had_children(d_type)
+        return has_children
+        
+    def get_current(self,type): #get_item
+        if type in self.virtual_types:
+            prev = None
+            real_types = self.virtual_types[type]
+            for r_type in real_types:               
+                i = self.types.index(r_type)
+                if self.current_objects[i]:
+                    prev = i
+                    continue
+                else:
+                    break
+            if prev:
+                return self.current_objects[prev]
+            else:
+                return None
+        else:
+            i = self.types.index(type)
+            return self.current_objects[i]
+    
+    def get_parent(self,type): # should move to Record class
+        this_obj = self.get_current(type)
+        parent = None
+        for obj in self.current_objects:
+            if obj == this_obj:
+                break
+            else:
+                parent = obj
+        return parent
+        
+    def push(self,type,name,value=None):
+        r = []
+        if type in self.virtual_types:
+            real_types = self.virtual_types[type][:]
+            for r_type in real_types:
+                i = self.types.index(r_type)
+                if self.current_objects[i]:
+                    continue
+                else: 
+                    break
+            r.extend(self.push(r_type,name))
 
-		elif type in self.types:
-			i = self.types.index(type) # should this include parallel objcts?  if so, add them to types.  probably.
-			if self._had_children(type) or self.current_objects[i]:
-				self.pull(type)
+        elif type in self.types:
+            i = self.types.index(type) # should this include parallel objcts?  if so, add them to types.  probably.
+            if self._had_children(type) or self.current_objects[i]:
+                self.pull(type)
 
-			if value is not None:
-				self.v[i] = value
-			elif self.v[i] == 0:
-				self.v[i] = 1
+            if value is not None:
+                self.v[i] = value
+            elif self.v[i] == 0:
+                self.v[i] = 1
 
-			r.extend((Record(type,name,self.v[:]),))
-			self.current_objects[i] = r[-1]
-		return r
-		
-	def pull(self,type):
-		r = []
-		if type in self.virtual_types:
-			real_types = self.virtual_types[type][:]
-			real_types.reverse()
-			for r_type in real_types:
-				i = self.types.index(r_type)
-				if self.current_objects[i]:
-					break
-			r.extend(self.pull(r_type))
+            r.extend((Record(type,name,self.v[:]),))
+            self.current_objects[i] = r[-1]
+        return r
+        
+    def pull(self,type):
+        r = []
+        if type in self.virtual_types:
+            real_types = self.virtual_types[type][:]
+            real_types.reverse()
+            for r_type in real_types:
+                i = self.types.index(r_type)
+                if self.current_objects[i]:
+                    break
+            r.extend(self.pull(r_type))
 
-		elif type in self.types:
-			i = self.types.index(type)
-			dependents = self.depends_on[type][:]
-			dependents.reverse()
-			for dep_type in dependents:
-				r.extend(self.pull(dep_type))
-				j = self.types.index(dep_type)
-				self.v[j] = 0
-			if self.current_objects[i]:
-				r.extend((self.current_objects[i],))
-				print >> self.out, r[-1]
-				new_id = r[-1].id
-				for k,n in enumerate(new_id):
-					self.v_max[k] = max(self.v_max[k],n)
-				self.current_objects[i] = None
-				self.v[i] += 1  
-		return r
+        elif type in self.types:
+            i = self.types.index(type)
+            dependents = self.depends_on[type][:]
+            dependents.reverse()
+            for dep_type in dependents:
+                r.extend(self.pull(dep_type))
+                j = self.types.index(dep_type)
+                self.v[j] = 0
+            if self.current_objects[i]:
+                r.extend((self.current_objects[i],))
+                print >> self.out, r[-1]
+                new_id = r[-1].id
+                for k,n in enumerate(new_id):
+                    self.v_max[k] = max(self.v_max[k],n)
+                self.current_objects[i] = None
+                self.v[i] += 1  
+        return r
 
 class OHCOVector:
     """OHCOVector manages all the index arithmetic necessary to construct a PhiloLogic index.
@@ -292,3 +440,24 @@ class OHCOVector:
         for l, n in zip(self.inner_types,self.v):
             r.append("%s:%d" % (l,n))
         return "(%s)" % ", ".join(r)
+
+if __name__ == "__main__":
+    print "testing OHCOVector.CompoundStack"
+    my_types = ["doc","div1","div2","div3","para","sent","word"]
+    stack = CompoundStack(my_types,"page")
+    stack.push("doc","<doc>",0)
+    stack.push("div1","<div1>",0)
+    stack.push("word","a",0)
+    stack.push("word","b",1)
+    stack.push("word","c",2)
+    stack.push("div2","<div2>",3)
+    stack.push("word","d",3)
+    stack.push("page","pg1",4)
+    stack.push("word","e",4)
+    stack.pull("div1","</div1>",4)
+    stack.push("word","f",5)    
+    stack.push("div1","<div1>",6)
+    stack.push("div3","<div3>",6)
+    stack.push("word","g",6)
+    stack.pull("doc","</doc>",7)
+    stack.push("page","lastpg",7)

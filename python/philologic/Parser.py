@@ -140,7 +140,7 @@ class Parser:
 			# Tokenize and emit tokens.  Still a bit hackish.
 			# TODO: Tokenizer object shared with output formatter. 
 			# Should push a sentence by default here, if we're in a new para/div/doc.  sent byte ordering is not quite right.
-			tokens = re.finditer(r"([^ \.;:?!\"\n]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
+			tokens = re.finditer(r"([^ \.;:?!\"\n\r]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
 			for t in tokens:
 				if t.group(1):
 					# Should push a sentence here if I'm not in one... all words occur in sentences.

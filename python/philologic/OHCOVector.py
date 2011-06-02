@@ -15,6 +15,21 @@ class ParallelRecord(object):
         print_id = [self.id[0], 0, 0, 0, 0, 0, 0, 0, self.id[1]]
         return "%s\t%s\t%s\t%s" % (self.type, self.name, " ".join(str(i) for i in print_id), self.attrib)
 
+    def __getitem__(self,n):
+        return self.attrib[n]
+        
+    def __setitem__(self,n,val):
+        self.attrib[n] = val
+
+    def get(self,key,default):
+        if key in self.attrib:
+            return self.attrib[key]
+        else:
+            return default
+    
+    def getid(self):
+        return [self.id[0], 0, 0, 0, 0, 0, 0, 0, self.id[1]]
+        
 class CompoundRecord(object):
     def __init__(self,type,name,id):
         self.type = type
@@ -28,10 +43,27 @@ class CompoundRecord(object):
         print_id.append(self.attrib.get("page",0))
         return "%s\t%s\t%s\t%s" % (self.type,self.name," ".join(str(i) for i in print_id),self.attrib)
 
+    def __getitem__(self,n):
+        return self.attrib[n]
+        
+    def __setitem__(self,n,val):
+        self.attrib[n] = val
+        
+    def get(self,key,default):
+        if key in self.attrib:
+            return self.attrib[key]
+        else:
+            return default
+            
+    def getid(self):
+        return self.id + [self.attrib.get("byte_start",0)] + [self.attrib.get("page",0)]
+
 class CompoundStack(object):
-    def __init__(self,types,parallel,out=None,factory=CompoundRecord,p_factory = ParallelRecord):
-        self.stack = NewStack(types,out,factory)
-        self.p_type = parallel
+    def __init__(self,types,parallel,docid=0,out=None,factory=CompoundRecord,p_factory = ParallelRecord):
+        self.stack = NewStack(types[:],out,factory)
+        self.v_max = self.stack.v_max
+        self.stack.v[0] = docid
+        self.p_type = parallel[:]
         self.current_p = None
         self.p = 0
         self.p_factory = p_factory
@@ -54,16 +86,16 @@ class CompoundStack(object):
         else:
             self.stack.push(type,name,byte)
     
-    def pull(self,type,name,byte):
+    def pull(self,type,byte):
         if type == self.p_type:
             pass
         else:
-            return self.stack.pull(type,name,byte)
-    
+            return self.stack.pull(type,byte)
+        
 class NewStack(object):            
     def __init__(self,types,out=None,factory=None):
         self.v = []
-        self.v_max = []
+        self.v_max = [0,0,0,0,0,0,0,0,0]
         self.types = types
         self.v_types = {}
         self.current_objects = []
@@ -101,7 +133,7 @@ class NewStack(object):
         if type in self.types:
             return self.types.index(type)
         elif type in self.v_types:
-            possible_types = self.v_types
+            possible_types = self.v_types[type][:]
             possible_types.reverse()
             for t in possible_types:
                 i = self.types.index(t)
@@ -117,7 +149,7 @@ class NewStack(object):
             self.push(self.types[len(self)],"__philo_virtual",byte)
         # if we're currently in a node, we have to pull it first. and [implicitly] all its children
         if type in self:
-            self.pull(type,"__philo_break",byte)
+            self.pull(type,byte)
         # now we can create a new node.  increment field here ONLY TO MARK INITIALIZATION
         if self.v[i] == 0:
             self.v[i] = 1
@@ -125,7 +157,7 @@ class NewStack(object):
         r.attrib["byte_start"] = byte
         self.current_objects.append(r)
         
-    def pull(self,type,name,byte):
+    def pull(self,type,byte):
         # have to pull all descendants. recursively? no, too much overhead.  reverse order, real types.
         i = self.index(type)
         if type in self.types:
@@ -133,10 +165,11 @@ class NewStack(object):
                 descendants = self.types[i+1:]
                 descendants.reverse()
                 for d in descendants:
-                    self.pull(d,"__philo_break",byte)
+                    self.pull(d,byte)
                 # print
                 self.current_objects[i].attrib["byte_end"] = byte
                 print >> self.out, self.current_objects[i]
+                self.v_max = [max(new,prev) for new,prev in zip(self.v_max,self.current_objects[i].getid())]
                 # we know all descendants have already been pulled.  so only have to reset the next one. and increment.
                 self.v[i] += 1
                 if (i + 1) < len(self.v): # check to see we're not in a leaf node
@@ -144,11 +177,11 @@ class NewStack(object):
                 self.current_objects.pop()
         # if virtual type, have to identify a non-virtual node.
         elif type in self.v_types:
-            possible_types = self.v_types
+            possible_types = self.v_types[type][:]
             possible_types.reverse()
             for t in possible_types:
-                if self[t] != "__philo_virtual":
-                    self.pull(t,name,byte)
+                if t in self and self[t] != "__philo_virtual":
+                    self.pull(t,byte)
                     break
             
 
@@ -454,10 +487,10 @@ if __name__ == "__main__":
     stack.push("word","d",3)
     stack.push("page","pg1",4)
     stack.push("word","e",4)
-    stack.pull("div1","</div1>",4)
+    stack.pull("div1",4)
     stack.push("word","f",5)    
     stack.push("div1","<div1>",6)
     stack.push("div3","<div3>",6)
     stack.push("word","g",6)
-    stack.pull("doc","</doc>",7)
+    stack.pull("doc",7)
     stack.push("page","lastpg",7)

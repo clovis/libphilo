@@ -39,8 +39,14 @@ class CompoundRecord(object):
 
     def __str__(self):
         print_id = self.id
+        try: 
+            parent_index = self.id.index(0) - 1
+        except ValueError:
+            parent_index = len(self.id) - 1
+        parent_id = [x if i < parent_index else 0 for i,x in enumerate(self.id)]
         print_id.append(self.attrib.get("byte_start",0))
         print_id.append(self.attrib.get("page",0))
+        self.attrib["parent"] = " ".join(str(x) for x in parent_id)
         return "%s\t%s\t%s\t%s" % (self.type,self.name," ".join(str(i) for i in print_id),self.attrib)
 
     def __getitem__(self,n):
@@ -63,7 +69,7 @@ class CompoundStack(object):
         self.stack = NewStack(types[:],out,factory)
         self.v_max = self.stack.v_max
         self.stack.v[0] = docid
-        self.p_type = parallel[:]
+        self.p_type = parallel
         self.current_p = None
         self.p = 0
         self.p_factory = p_factory
@@ -74,6 +80,18 @@ class CompoundStack(object):
         else:
             return self.stack[n]
             
+    def __contains__(self,n):
+        if n == self.p_type:
+            if self.current_p:
+                return True
+            else:
+                return False
+        else:
+            if n in self.stack:
+                return True
+            else:
+                return False
+    
     def push(self,type,name,byte):
         if type == self.p_type:
             if self.current_p:
@@ -85,6 +103,8 @@ class CompoundStack(object):
             return self.current_p    
         else:
             self.stack.push(type,name,byte)
+            if self.current_p:
+                self.stack[type]["page"] = self.current_p.id[1]
     
     def pull(self,type,byte):
         if type == self.p_type:
@@ -137,25 +157,39 @@ class NewStack(object):
             possible_types.reverse()
             for t in possible_types:
                 i = self.types.index(t)
-                if len(self.current_objects) > i:
-                    return i
+                if t in self and self[t].name != "__philo_virtual":
+                    break
+            return i
         raise IndexError
 
     def push(self,type,name,byte):
         # create any necessary virtual ancestors
-        # print self.current_objects
+#        print [x.name for x in self.current_objects]
+        
         i = self.index(type)
-        while len(self) < i:
-            self.push(self.types[len(self)],"__philo_virtual",byte)
-        # if we're currently in a node, we have to pull it first. and [implicitly] all its children
-        if type in self:
-            self.pull(type,byte)
-        # now we can create a new node.  increment field here ONLY TO MARK INITIALIZATION
-        if self.v[i] == 0:
-            self.v[i] = 1
-        r = self.factory(type,name,self.v[:])
-        r.attrib["byte_start"] = byte
-        self.current_objects.append(r)
+  #      print "%s %d" % (type,i)
+        if type in self.types:
+            while len(self) < i:
+                self.push(self.types[len(self)],"__philo_virtual",byte)
+            # if we're currently in a node, we have to pull it first. and [implicitly] all its children
+            if type in self:
+                self.pull(type,byte)
+            # now we can create a new node.  increment field here ONLY TO MARK INITIALIZATION
+            if self.v[i] == 0:
+                self.v[i] = 1
+            r = self.factory(type,name,self.v[:])
+            r.attrib["byte_start"] = byte
+            self.current_objects.append(r)
+        elif type in self.v_types:
+ #           print "trying to push %s out of %s" % (type, self.v_types[type])
+            possible_types = self.v_types[type][:]
+            for t in possible_types:
+                if t in self and self[t].name == "__philo_virtual":
+#                    print "found at %s" % t
+                    break
+                if t not in self:
+                    break
+            self.push(t,name,byte)
         
     def pull(self,type,byte):
         # have to pull all descendants. recursively? no, too much overhead.  reverse order, real types.
@@ -180,9 +214,9 @@ class NewStack(object):
             possible_types = self.v_types[type][:]
             possible_types.reverse()
             for t in possible_types:
-                if t in self and self[t] != "__philo_virtual":
-                    self.pull(t,byte)
+                if t in self and self[t].name != "__philo_virtual":
                     break
+            self.pull(t,byte)
             
 
 class Record(object):

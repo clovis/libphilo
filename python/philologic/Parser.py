@@ -13,7 +13,7 @@ et = shlaxtree.et  # MAKE SURE you use ElementTree version 1.3.
 # Keep your push and pulls matched and nested unless you know exactly what you're doing.
 
 ARTFLVector = ["doc","div1","div2","div3","para","sent","word"]
-ARTFLParallels = ["byte","page"]
+ARTFLParallels = "page"
 
 # The compressor is NOT configurable in this version, so DON'T change this format.
 # Feel free to re-purpose the "page" object to store something else: line numbers, for example.
@@ -32,6 +32,7 @@ TEIMapping = {  ".":"doc", # Always fire a doc against the document root.
                 ".//p":"para",
                 ".//sp":"para",
                 #"stage":"para"
+                ".//pb":"page",
              } 
 
 # Relative xpaths for metadata extraction.  look at the constructors in TEIHelpers.py for details.
@@ -47,6 +48,8 @@ TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author",
                       (AttributeExtractor,".@n","n"),
                       (AttributeExtractor,".@xml:id","id")],
              "para": [(ContentExtractor,"./speaker", "who")],
+             "page": [(AttributeExtractor,".@n","n"),
+                      (AttributeExtractor,".@src","img")],
            }
 
 class Parser:
@@ -125,13 +128,16 @@ class Parser:
             # Tokenize and emit tokens.  Still a bit hackish.
             # TODO: Tokenizer object shared with output formatter. 
             # Should push a sentence by default here, if we're in a new para/div/doc.  sent byte ordering is not quite right.
-            tokens = re.finditer(r"([^ \.;:?!\"\n\r]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
+            tokens = re.finditer(r"([^ \.;:?!\"\n\r\t]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
             for t in tokens:
                 if t.group(1):
                     # This will implicitly push a sentence if we aren't in one already.
                     self.v.push("word",t.group(1).lower(),offset + t.start(1)) 
                     self.v.pull("word",offset + t.end(1)) 
                 elif t.group(2): 
+                    # a sentence should already be defined most of the time.
+                    if "sent" not in self.v:
+                        self.v.push("sent",t.group(2),offset)
                     self.v["sent"].name = t.group(2) 
                     self.v.pull("sent",offset + t.end(2))
 

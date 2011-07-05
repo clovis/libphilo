@@ -67,6 +67,7 @@ class CompoundRecord(object):
 class CompoundStack(object):
     def __init__(self,types,parallel,docid=0,out=None,factory=CompoundRecord,p_factory = ParallelRecord):
         self.stack = NewStack(types[:],out,factory)
+        self.out = out
         self.v_max = self.stack.v_max
         self.stack.v[0] = docid
         self.p_type = parallel
@@ -96,7 +97,7 @@ class CompoundStack(object):
         if type == self.p_type:
             if self.current_p:
                 self.current_p.attrib["end_byte"] = byte
-                print self.current_p
+                print >> self.out, self.current_p
             self.p += 1
             self.current_p = self.p_factory(type,name,[self.stack.v[0],self.p])
             self.current_p.attrib["start_byte"] = byte

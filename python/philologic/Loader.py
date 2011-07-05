@@ -20,15 +20,6 @@ class Loader(object):
         self.omax = [0,0,0,0,0,0,0,0,0]
         self.totalcounts = {}
         self.verbose = verbose
-
-    def load(self,path,files):
-        self.setup_dir(path,files)
-        self.parse_files()
-        self.merge_objects()
-        self.analyze()
-        self.make_tables()
-        self.finish()
-       
         
     def setup_dir(self,path,files):
         self.destination = path
@@ -47,6 +38,7 @@ class Loader(object):
                              "words":self.workdir + os.path.basename(x) + ".words.sorted",
                              "toms":self.workdir + os.path.basename(x) + ".toms",
                              "sortedtoms":self.workdir + os.path.basename(x) + ".toms.sorted",
+                             "pages":self.workdir + os.path.basename(x) + ".pages",
                              "count":self.workdir + os.path.basename(x) + ".count",
                              "results":self.workdir + os.path.basename(x) + ".results"} for n,x in enumerate(self.files)]
 
@@ -55,7 +47,7 @@ class Loader(object):
         
         os.chdir(self.workdir) #questionable
         
-    def parse_files(self):
+    def parse_files(self,xpaths=None,metadata_xpaths=None):
         filequeue = self.fileinfo[:]
         print "parsing %d files." % len(filequeue)
         procs = {}
@@ -81,7 +73,7 @@ class Loader(object):
                     i = codecs.open(text["newpath"],"r",)
                     o = codecs.open(text["raw"], "w",) # only print out raw utf-8, so we don't need a codec layer now.
                     print "parsing %d : %s" % (text["id"],text["name"])
-                    parser = Parser.Parser({"filename":text["name"]},text["id"],output=o)
+                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,output=o)
                     r = parser.parse(i)  
                     i.close()
                     o.close()
@@ -93,6 +85,8 @@ class Loader(object):
                     os.system(countcommand)            
                     tomscommand = "cat %s | egrep \"^doc|^div|^para\" | sort %s > %s" % (text["raw"],sort_by_id,text["sortedtoms"])
                     os.system(tomscommand)
+                    pagescommand = "cat %s | egrep \"^page\" > %s" % (text["raw"],text["pages"])
+                    os.system(pagescommand)
                     
                     #post filter word processing.
                     max_id = None
@@ -104,7 +98,7 @@ class Loader(object):
                         else:
                             max_id = [max(new,prev) for new,prev in zip(id,max_id)]
                             
-                    print max_id
+#                    print max_id
                     rf = open(text["results"],"w")
                     cPickle.dump(max_id,rf) # write the result out--really just the resulting omax vector, which the parent will merge in below.
                     rf.close()
@@ -125,11 +119,14 @@ class Loader(object):
         words_result = self.workdir + "all.words.sorted"
         tomsfilearg = " ".join(file["sortedtoms"] for file in self.fileinfo)
         toms_result = self.workdir + "all.toms.sorted"
-        os.system("sort -m %s %s %s > %s" % (wordfilearg,sort_by_word,sort_by_id, self.workdir + "all.words.sorted") )
-        os.system("sort -m %s %s > %s" % (tomsfilearg,sort_by_id, self.workdir + "all.toms.sorted") )
-                
+        pagesfilearg = " ".join(file["pages"] for file in self.fileinfo)
+        pages_result = self.workdir + "all.pages"
+        os.system("sort -m %s %s %s > %s" % (wordfilearg,sort_by_word,sort_by_id, words_result) )
+        os.system("sort -m %s %s > %s" % (tomsfilearg,sort_by_id, toms_result) )
+        os.system("cat %s > %s" % (pagesfilearg,pages_result) )
+        
     def analyze(self):
-
+        print self.omax
         vl = [max(int(math.ceil(math.log(float(x),2.0))),1) if x > 0 else 1 for x in self.omax]        
         print vl
         width = sum(x for x in vl)
@@ -190,10 +187,25 @@ class Loader(object):
             count = int(open(f["count"]).read())
             toms.dbh.execute("UPDATE toms SET word_count = %d WHERE filename = '%s';" % (count,f["name"]))
         toms.dbh.commit()
+        pagedb = SqlToms.SqlToms("../pages.db",9)
+        pagedb.mktoms_sql(self.workdir + "/all.pages")
+        pagedb.dbh.commit()
 
     def finish(self):
         os.mkdir(self.destination + "/src/")
         os.system("mv dbspecs4.h ../src/dbspecs4.h")
+
+# a quick utility function
+def load(path,files,xpaths=None,metadata_xpaths=None,workers=4):
+    l = Loader(workers)    
+    l.setup_dir(path,files)
+    l.parse_files(xpaths,metadata_xpaths)
+    l.merge_objects()
+    l.analyze()
+    l.make_tables()
+    l.finish()
+   
+
         
 if __name__ == "__main__":
     os.environ["LC_ALL"] = "C" # Exceedingly important to get uniform sort order.
@@ -212,7 +224,6 @@ if __name__ == "__main__":
         print usage
         exit()
 
-    l = Loader()
-    l.load(destination,texts)
+    load(destination,texts)
     
     print "done"

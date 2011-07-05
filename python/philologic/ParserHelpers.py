@@ -30,6 +30,6 @@ class AttributeExtractor(object):
 		if event[0] == "start":
 			#print "looking for @%s in %s" % (self.att_name, element.attrib)
 			if element in self.context.findall(self.path) and self.att_name in element.attrib:
-				self.destination[self.field] = self.destination.get(self.att_name,"") + element.attrib[self.att_name]
+				self.destination[self.field] = self.destination.get(self.field,"") + (element.attrib[self.att_name] or "")
 				return True
 		return False

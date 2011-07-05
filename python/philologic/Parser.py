@@ -22,7 +22,7 @@ ARTFLParallels = "page"
 # They're evaluated relative to the document root--note that if the root is closed and discarded, you're in trouble.
 # TODO: add xpath support soon, for attribute matching. <milestone unit='x'>, for example.
 
-TEIMapping = {  ".":"doc", # Always fire a doc against the document root.
+TEI_XPaths = {  ".":"doc", # Always fire a doc against the document root.
                 ".//front":"div",
                 ".//div":"div",
                 ".//div0":"div",
@@ -40,7 +40,7 @@ TEIMapping = {  ".":"doc", # Always fire a doc against the document root.
 # Note that we supply the class and its configuration arguments, but don't construct them yet.
 # Full construction is carried out when new records are created, supplying the context and destination.
 
-TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author","author"),
+TEI_MetadataXPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author","author"),
                       (ContentExtractor,"./teiHeader/fileDesc/titleStmt/title", "title"),
                       (ContentExtractor,"./teiHeader/profileDesc/creation/date", "date"),                      
                       (AttributeExtractor,".@xml:id","id")],
@@ -52,25 +52,33 @@ TEIPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author",
                       (AttributeExtractor,".@src","img")],
            }
 
+Default_Token_Regexp = r"([^ \.,;:?!\"\n\r\t]+)|([\.;:?!])"
+
 class Parser:
-    def __init__(self,known_metadata,docid,format=ARTFLVector,parallel=ARTFLParallels,map=TEIMapping,metadata_paths = TEIPaths,output=None):
+    def __init__(self,known_metadata,docid,format=ARTFLVector,parallel=ARTFLParallels,xpaths=None,metadata_xpaths = None,token_regexp = Default_Token_Regexp,output=None):
         self.known_metadata = known_metadata
         self.docid = docid
         self.i = shlaxtree.ShlaxIngestor(target=self)
         self.tree = None #unnecessary?
         self.root = None
         self.stack = []
-        self.map = map
+        self.map = xpaths or TEI_XPaths
+        self.metadata_paths = metadata_xpaths or TEI_MetadataXPaths
         self.v = OHCOVector.CompoundStack(format,parallel,docid,output)
         # OHCOVector should take an output file handle.
-        self.metadata_paths = metadata_paths
         self.extractors = []
         self.file_position = 0
+        self.token_regexp = token_regexp
         
     def parse(self,input):
         """Top level function for reading a file and printing out the output."""
         self.input = input
-        for line in input:
+        self.i.feed(self.input.read())
+        return self.i.close()
+        
+    def parsebyline(self,input):
+        self.input = input
+        for line in self.input:
             self.i.feed(line)
         return self.i.close()
 
@@ -128,7 +136,7 @@ class Parser:
             # Tokenize and emit tokens.  Still a bit hackish.
             # TODO: Tokenizer object shared with output formatter. 
             # Should push a sentence by default here, if we're in a new para/div/doc.  sent byte ordering is not quite right.
-            tokens = re.finditer(r"([^ \.;:?!\"\n\r\t]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
+            tokens = re.finditer(r"([^ \.,;:?!\"\s\(\)]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
             for t in tokens:
                 if t.group(1):
                     # This will implicitly push a sentence if we aren't in one already.

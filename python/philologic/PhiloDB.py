@@ -1,16 +1,120 @@
 import os,sys
 import hashlib
 import struct
-from philologic import Query,SqlToms,HitList
+import re
+from philologic import Query,SqlToms,HitList,shlax
+              
+def make_cite(db,hit,url):
+    doc = db[hit[0]]
+    div1 = db[hit[:2]]
+    div2 = db[hit[:3]]
+    div3 = db[hit[:4]]
+    para = db[hit[:5]]
+    page_id = [hit[0]] + list(hit[6:7])
+    print >> sys.stderr, "hit %s" % str(hit)
+    page = db.pages[page_id]
+    r = ""
+    r += "<a class='philologic_cite' href='%s' id='%s'>" % (url,hit)
+
+    if "author" in doc.keys():
+        r += ("<span class='philologic_property' title='author'>%s</span>, " % doc["author"])
+    if "title" in doc.keys():
+        r += ("<span class='philologic_property' title='title'>%s</span> " % doc["title"])
+    if "date" in doc.keys():
+        r += ("<span class='philologic_property' title='date'>(%s)</span>" % doc["date"])
+    if div2 and "head" in div2.keys() and div2["head"]:
+        r += ("<span class='philologic_property' title='head'> %s</span>" % div1["head"])
+    elif div1 and "head" in div1.keys() and div1["head"]:
+        r += ("<span class='philologic_property' title='head'> %s</span>" % div1["head"])
+    if div1 and "articleAuthor" in div1.keys() and div1["articleAuthor"] != "unknown":
+        r += ("<span class='philologic_property' title='articleAuthor'>- %s</span>" % div1["articleAuthor"])
+    if div1 and "normClass" in div1.keys() and div1["normClass"] != "unclassified":
+        r += ("<span class='philologic_property' title='normClass'> [%s]</span>" % div1["normClass"])
+    if page:
+        r += " " + page["n"]
+
+    r += ("</a>\n")
+    return r
+
+
+def format_stream(text,start = 0,offsets = []):
+    byte_offsets = offsets[:]
+    need_l_trim = re.search("^[^<]*?>",text)
+    if need_l_trim:
+        l_trim_off = need_l_trim.end(0)
+        text = text[l_trim_off:]
+    else:
+        l_trim_off = 0
+        
+    need_r_trim = re.search("<[^>]*?$",text)
+    if need_r_trim:
+        r_trim_off = need_r_trim.start(0)
+        text = text[:r_trim_off]
+    else:
+        r_trim_off = 0
+        
+    start_point = start + l_trim_off
+    stream = shlax.parsestring(text)
+    output = ""
+    for node in stream:        
+        if node.type == "text":
+            while byte_offsets and node.start + start_point + len(node.content) > byte_offsets[0]:
+                word_start = byte_offsets[0] - (node.start + start_point)
+                output += node.content[:word_start]
+                output += "<span class='hilite'>"
+                rest = node.content[word_start:]
+                word_end = re.search("[\s\.,;?!'\"]|$",rest).start(0)
+                output += rest[:word_end]
+                output += "</span>"
+                byte_offsets.pop(0)
+                node.content = rest[word_end:]
+                node.start = node.start + word_start + word_end
+            output += node.content            
+        if node.type == "StartTag" and (node.name == "l" or node.name == "speaker" or node.name == "ab"):
+            output += "<br/>"
+        elif node.type == "StartTag" and node.name == "p":
+            output += "<p/>"
+
+    return output
 
 class PhiloDB:
     def __init__(self,dbpath,width = 7):
         self.path = dbpath
         self.toms = SqlToms.SqlToms(dbpath + "/toms.db",width)
         self.width = width
+        self.locals = {}
+        self.pages = SqlToms.SqlToms(dbpath + "/pages.db",2)
+        try:
+            execfile(dbpath + "/db.locals.py",globals(),self.locals)
+        except IOError:
+            pass
+        if "metadata_fields" not in self.locals: 
+            self.locals["metadata_fields"] = ["author","title","date","who","head"]
+        if "metadata_hierarchy" not in self.locals:
+            self.locals["metadata_hierarchy"] = [ ["author","title","date"],["head"],["who"] ]
+        if "metadata_types" not in self.locals:
+            self.locals["metadata_types"] = {"author":"doc","title":"doc","date":"doc","head":"div","who":"para"}            
+        if "make_cite" not in self.locals:
+            self.locals["make_cite"] = make_cite
+        if "format_stream" not in self.locals:
+            self.locals["format_stream"] = format_stream
 
     def __getitem__(self,n):
         return self.toms[n]
+
+    def metadata_query(self,**metadata):
+        template = [{} for level in self.locals["metadata_hierarchy"]]
+        for k,v in metadata.items():
+            for i, params in enumerate(self.locals["metadata_hierarchy"]):
+                if v and (k in params):
+                    template[i][k] = v
+                    if k in self.locals["metadata_types"]:
+                        template[i]["philo_type"] = self.locals["metadata_types"][k]
+        result = None
+        for t in template:
+            if t:                
+                result = self.toms.query(corpus=result,**t)
+        return result
 
     def query(self,qs,method=None,method_arg=0,limit=1000000,**metadata):
         hashable = (qs,method,method_arg,tuple(metadata.items()))
@@ -35,10 +139,10 @@ class PhiloDB:
         corpus_size = self.width
         corpus_count = 0
         print >> sys.stderr, "metadata = %s" % repr(metadata)
-        if metadata:
+        if metadata and [v for k,v in metadata.items() if v]: # kind of a hack.  should have better handling of null metadata.
             corpus_file = "/var/lib/philologic/hitlists/" + hex_hash + ".corpus"
             corpus_fh = open(corpus_file,"wb")
-            for c_obj in self.toms.query(**metadata):
+            for c_obj in self.metadata_query(**metadata):
                 c_id = [int(x) for x in c_obj["philo_id"].split(" ")]
                 corpus_fh.write(struct.pack("=7i",*c_id))
                 corpus_count += 1

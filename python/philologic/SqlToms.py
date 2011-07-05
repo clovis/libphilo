@@ -46,7 +46,7 @@ class SqlToms:
                 if k == "philo_type":
                     qstring += " %s == ?" % (k)
                     vs.append(v)
-                elif v == "None":
+                elif v == "[None]":
                     qstring += " %s IS NULL" % (k)                    
                 else:
                     qstring += " %s LIKE ?" % (k) # forgot the AND
@@ -100,7 +100,7 @@ class SqlToms:
     def get_siblings(self,obj):
         p = self.get_parent(obj)
         if not p:
-        	return []
+            return []
         sibs = self.get_children(p)
         return sibs
 
@@ -110,7 +110,7 @@ class SqlToms:
         while current_obj:
             my_siblings = list(self.get_siblings(current_obj))
             if not my_siblings:
-            	break
+                break
             my_position = my_siblings.index(current_obj)
             if my_position > 0: # if we have a sibling to the left:
                 current_obj = my_siblings[my_position - 1]
@@ -132,7 +132,7 @@ class SqlToms:
         while current_obj:
             my_siblings = list(self.get_siblings(current_obj))
             if not my_siblings:
-            	break
+                break
             my_position = my_siblings.index(current_obj)
             if my_position < len(my_siblings) - 1: # if we have a sibling on the right
                 current_obj = my_siblings[my_position + 1]
@@ -193,6 +193,49 @@ class SqlToms:
                 s += 1
         db.commit()
 
+    def mkpages_sql(self,file_in):
+        known_fields = []
+        db = self.dbh
+        db.text_factory = str
+        db.execute("CREATE TABLE IF NOT EXISTS toms (philo_type,philo_name,philo_id,philo_seq);")
+        db.execute("CREATE INDEX type_index ON toms(philo_type);")
+        db.execute("CREATE INDEX id_index ON toms(philo_id);")
+        s = 0
+        for line in open(file_in):
+            (philo_type,philo_name,id,attrib) = line.split("\t",3)
+            fields = id.split(" ",8)
+            if len(fields) == 9: 
+                philo_id = " ".join((fields[0],fields[8]))
+                raw_attr = attrib
+                #print raw_attr
+                r = {}
+                r["philo_type"] = philo_type
+                r["philo_name"] = philo_name
+                r["philo_id"] = philo_id
+                r["philo_seq"] = s
+                # I should add philo_parent here.  tricky to keep track of though.
+                attr = ast.literal_eval(raw_attr)
+                #print attr
+                for k in attr:
+                    if k not in known_fields:
+                        print k
+                        db.execute("ALTER TABLE toms ADD COLUMN %s;" % k) 
+                        # it seems like i can't safely interpolate column names. ah well.
+                        known_fields.append(k)
+                    r[k] = attr[k]
+                rk = []
+                rv = []
+                for k,v in r.items():
+                    rk.append(k)
+                    rv.append(v)
+                ks = "(%s)" % ",".join(x for x in rk)
+#                print ks
+#                print repr(rv)
+                insert = "INSERT INTO toms %s values (%s);" % (ks,",".join("?" for i in rv))
+                db.execute(insert,rv)
+                s += 1
+        db.commit()
+        
 def hit_to_string(hit,width):
     if isinstance(hit,sqlite3.Row):
         hit = hit["philo_id"]   

@@ -51,8 +51,8 @@ int main(int argc, char **argv) {
 			break;		
 		}
 		state = sscanf(line,
-		               "word\t%s\t%d %d %d %d %d %d %d %d %s", 
-		               word, &hit[0],&hit[1],&hit[2],&hit[3],&hit[4],&hit[5],&hit[6],&hit[7], page
+		               "word\t%s\t%d %d %d %d %d %d %d %d %d", 
+		               word, &hit[0],&hit[1],&hit[2],&hit[3],&hit[4],&hit[5],&hit[6],&hit[7], &hit[8]
 					  );
 
 		if (state == 10) {

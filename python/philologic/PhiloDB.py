@@ -26,10 +26,17 @@ def make_cite(db,hit,url):
         r += ("<span class='philologic_property' title='head'> %s</span>" % div1["head"])
     elif div1 and "head" in div1.keys() and div1["head"]:
         r += ("<span class='philologic_property' title='head'> %s</span>" % div1["head"])
+    elif div2 and "headword" in div2.keys() and div2["headword"]:
+        r += ("<span class='philologic_property' title='headword'> %s</span>" % div1["headword"])
+    elif div1 and "headword" in div1.keys() and div1["headword"]:
+        r += ("<span class='philologic_property' title='headword'> %s</span>" % div1["headword"])
     if div1 and "articleAuthor" in div1.keys() and div1["articleAuthor"] != "unknown":
         r += ("<span class='philologic_property' title='articleAuthor'>- %s</span>" % div1["articleAuthor"])
     if div1 and "normClass" in div1.keys() and div1["normClass"] != "unclassified":
         r += ("<span class='philologic_property' title='normClass'> [%s]</span>" % div1["normClass"])
+    elif div1 and "normalizedClass" in div1.keys() and div1["normalizedClass"] != "unclassified":
+        r += ("<span class='philologic_property' title='normalizedClass'> [%s]</span>" % div1["normalizedClass"])
+
     if page:
         r += " " + page["n"]
 
@@ -98,6 +105,8 @@ class PhiloDB:
             self.locals["make_cite"] = make_cite
         if "format_stream" not in self.locals:
             self.locals["format_stream"] = format_stream
+        if "conc_width" not in self.locals:
+            self.locals["conc_width"] = 400
 
     def __getitem__(self,n):
         return self.toms[n]

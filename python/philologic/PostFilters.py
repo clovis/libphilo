@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import sqlite3
+
 def index_metadata_fields(loader_obj):
     conn = sqlite3.connect(loader_obj.destination + '/toms.db')
     c = conn.cursor()

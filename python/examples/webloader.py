@@ -43,7 +43,7 @@ XPaths = {  ".":"doc", # Always fire a doc against the document root.
             ".//sp":"para",
             #"stage":"para"
             ".//pb":"page",
-         }
+         } 
 
 Metadata_XPaths = { # metadata per type.  '.' is in this case the base element for the type, as specified in XPaths above.
              "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author","author"),
@@ -60,8 +60,8 @@ Metadata_XPaths = { # metadata per type.  '.' is in this case the base element f
            }
 
 os.environ["LC_ALL"] = "C" # Exceedingly important to get uniform sort order.
-os.environ["PYTHONIOENCODING"] = "utf-8"
-
+os.environ["PYTHONIOENCODING"] = "utf-8" 
+    
 template_destination = "/var/www/philo4/" + dbname
 data_destination = template_destination + "/data"
 

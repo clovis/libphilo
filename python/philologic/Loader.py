@@ -11,7 +11,7 @@ import sqlite3
 
 from philologic import OHCOVector,SqlToms,Parser
 from philologic.LoadFilters import *
-from PostFilters import *
+from philologic.PostFilters import *
 
 sort_by_word = "-k 2,2"
 sort_by_id = "-k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n"
@@ -23,6 +23,7 @@ index_cutoff = 10 # index frequency cutoff.  Don't. alter.
 ## please consult the documentation for each of these filters in LoadFilters.py
 default_filters = [make_word_counts, generate_words_sorted, sorted_toms, prev_next_obj, generate_pages, make_max_id]
 default_tables = [('all_toms_sorted', 'toms.db', 7), ('all_pages', 'pages.db', 9)]
+default_post_filters = [index_metadata_fields]
 
 
 class Loader(object):
@@ -207,7 +208,7 @@ class Loader(object):
             if self.clean:
                 os.system('rm %s' % f)
 
-    def finish(self, Philo_Types, Metadata_XPaths, Post_Filters=True):
+    def finish(self, Philo_Types, Metadata_XPaths, Post_Filters=default_post_filters):
         os.mkdir(self.destination + "/src/")
         os.system("mv dbspecs4.h ../src/dbspecs4.h")
         
@@ -224,6 +225,8 @@ class Loader(object):
                     metadata_types[param] = t
         
         ## Create a new all_frequencies file in the frequencies folder
+        frequencies = self.destination + '/frequencies'
+        os.system('mkdir %s' % frequencies)
         output = open(frequencies + "/word_frequencies", "w")
         for line in open(self.destination + '/WORK/all_frequencies'):
             count, word = tuple(line.split())
@@ -234,8 +237,6 @@ class Loader(object):
         ## To be replaced by sqlite tables later on
         conn = sqlite3.connect(self.destination + '/toms.db')
         c = conn.cursor()
-        frequencies = self.destination + '/frequencies'
-        os.system('mkdir %s' % frequencies)
         for field in metadata_fields:
             query = 'select %s, count(*) from toms group by %s order by count(%s) desc' % (field, field, field)
             try:
@@ -259,9 +260,11 @@ class Loader(object):
         print >> sys.stderr, "wrote metadata info to %s." % (self.destination + "/db.locals.py")
         
         if Post_Filters:
-            print >> sys.stderr, 'Running the following post-processing filters %s' % ', '.join([f.__name__ for f in Post_Filters])
+            print >> sys.stderr, 'Running the following post-processing filters:'
             for f in Post_Filters:
+                print >> sys.stderr, f.__name__ + '...',
                 f(self, metadata_fields)
+                print >> sys.stderr, 'done.'
             
         
         

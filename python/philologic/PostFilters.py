@@ -2,7 +2,7 @@
 
 import sqlite3
 
-def index_metadata_fields(loader_obj):
+def index_metadata_fields(loader_obj, metadata_fields):
     conn = sqlite3.connect(loader_obj.destination + '/toms.db')
     c = conn.cursor()
     for field in metadata_fields:

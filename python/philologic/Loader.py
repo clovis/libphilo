@@ -12,6 +12,8 @@ import sqlite3
 from philologic import OHCOVector,SqlToms,Parser
 from philologic.LoadFilters import *
 from philologic.PostFilters import *
+from ExtraFilters import *
+from MakeTables import word_counts_table
 
 sort_by_word = "-k 2,2"
 sort_by_id = "-k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n"
@@ -22,19 +24,20 @@ index_cutoff = 10 # index frequency cutoff.  Don't. alter.
 ## If you are going to change the order of these filters (which is not recommended)
 ## please consult the documentation for each of these filters in LoadFilters.py
 default_filters = [make_word_counts, generate_words_sorted, sorted_toms, prev_next_obj, generate_pages, make_max_id]
-default_tables = [('all_toms_sorted', 'toms.db', 7), ('all_pages', 'pages.db', 9)]
+default_tables = ['all_toms_sorted', 'all_pages', 'doc_word_counts_sorted']
 default_post_filters = [index_metadata_fields]
 
 
 class Loader(object):
 
-    def __init__(self,workers=4,verbose=True, filters=default_filters, tables=default_tables, clean=True):
+    def __init__(self,workers=4,verbose=True, filters=default_filters, tables=default_tables, extra_tables=False, clean=True):
         self.max_workers = workers 
         self.omax = [0,0,0,0,0,0,0,0,0]
         self.totalcounts = {}
         self.verbose = verbose
         self.filters = filters
         self.tables = tables
+        self.extra_tables = extra_tables
         self.clean = clean
         self.sort_by_word = sort_by_word
         self.sort_by_id = sort_by_id
@@ -139,6 +142,12 @@ class Loader(object):
 #        pages_status = subprocess.call(pagesargs,0,"cat",stdout=pages_result,shell=True)
         pages_status = os.system(pagesargs + " > " + self.workdir + "all_pages")
         print >> sys.stderr, "%s: word join returned %d" % (time.ctime(), pages_status)
+        
+        ## Generate sorted file for word frequencies
+        wordsargs = "sort -m " + sort_by_word + " " + sort_by_id + " " + "*.doc.sorted"
+        print >> sys.stderr, "%s: sorting words frequencies" % time.ctime()
+        words_status = os.system(wordsargs + " > " + self.workdir + "doc_word_counts_sorted")
+        print >> sys.stderr, "%s: doc word count frequencies sort returned %d" % (time.ctime(),words_status)
 
     def analyze(self):
         print self.omax
@@ -197,16 +206,21 @@ class Loader(object):
             os.system('rm all_words_sorted')
 
     def make_tables(self):
-        for f, db, width in self.tables:
-            if f == 'all_toms_sorted':
-                print "found object metadata:"
-            elif f == 'all_pages':
-                print "found page metadata:"
-            table = SqlToms.SqlToms("../%s" % db,width)
-            table.mktoms_sql(self.workdir + "/%s" % f)
-            table.dbh.commit()
+        toms_tables = {'all_toms_sorted': ('toms.db', 7, 'object'), 'all_pages': ('pages.db', 9, 'page')}
+        for table in self.tables:
+            if table in toms_tables:
+                db, width, obj_type = toms_tables[table]
+                print "found %s metadata:" % obj_type
+                toms = SqlToms.SqlToms("../%s" % db,width)
+                toms.mktoms_sql(self.workdir + "/%s" % table)
+                toms.dbh.commit()
+            if table.endswith('_word_counts_sorted'):
+                word_counts_table(self, obj_type='doc')
             if self.clean:
-                os.system('rm %s' % f)
+                os.system('rm %s' % table)
+        if self.extra_tables:
+            for fn in self.extra_tables:
+                fn(self)
 
     def finish(self, Philo_Types, Metadata_XPaths, Post_Filters=default_post_filters):
         os.mkdir(self.destination + "/src/")
@@ -260,10 +274,11 @@ class Loader(object):
         print >> sys.stderr, "wrote metadata info to %s." % (self.destination + "/db.locals.py")
         
         if Post_Filters:
+            self.metadata_fields = metadata_fields
             print >> sys.stderr, 'Running the following post-processing filters:'
             for f in Post_Filters:
                 print >> sys.stderr, f.__name__ + '...',
-                f(self, metadata_fields)
+                f(self)
                 print >> sys.stderr, 'done.'
             
         

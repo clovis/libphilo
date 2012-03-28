@@ -4,6 +4,7 @@ import errno
 import philologic
 from philologic.Loader import Loader
 from philologic.LoadFilters import *
+from ExtraFilters import *
 from philologic.Parser import Parser
 from philologic.ParserHelpers import *
 
@@ -24,7 +25,7 @@ workers = 24
 
 # Define filters as a list of functions to call, either those in Loader or outside
 # an empty list is the default
-filters = [make_word_counts, generate_words_sorted,make_token_counts,sorted_toms, prev_next_obj, generate_pages, make_max_id]
+filters = [make_word_counts, generate_words_sorted,make_token_counts,sorted_toms, prev_next_obj, word_frequencies_per_obj, generate_pages, make_max_id]
 
 
 ###########################

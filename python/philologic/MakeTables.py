@@ -25,6 +25,7 @@ def word_counts_table(loader_obj, obj_type='doc'):
     query = 'create table if not exists toms (%s)' % columns
     c.execute(query)
     c.execute('create index word_index on toms (philo_name)')
+    c.execute('create index philo_id_index on toms (philo_id)')
     conn.commit()
     
     file_in = '%s/%s_word_counts_sorted' % (loader_obj.workdir, obj_type)

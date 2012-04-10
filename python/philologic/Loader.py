@@ -10,13 +10,18 @@ import subprocess
 import sqlite3
 from ast import literal_eval as eval
 
-from philologic import OHCOVector,SqlToms,Parser
+from philologic import OHCOVector, Parser
 from philologic.LoadFilters import *
 from philologic.PostFilters import *
 from ExtraFilters import *
 
+
+## Disable output buffering
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
+
 sort_by_word = "-k 2,2"
 sort_by_id = "-k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n"
+object_types = ['doc', 'div1', 'div2', 'div3', 'para', 'sent', 'word']
 
 blocksize = 2048 # index block size.  Don't alter.
 index_cutoff = 10 # index frequency cutoff.  Don't. alter.
@@ -24,8 +29,13 @@ index_cutoff = 10 # index frequency cutoff.  Don't. alter.
 ## If you are going to change the order of these filters (which is not recommended)
 ## please consult the documentation for each of these filters in LoadFilters.py
 default_filters = [make_word_counts, generate_words_sorted, sorted_toms, prev_next_obj, generate_pages, make_max_id]
-default_tables = ['all_toms_sorted', 'all_pages', 'doc_word_counts_sorted']
 default_post_filters = [index_metadata_fields]
+
+## While these tables are loaded by default, you can override that default, although be aware
+## that you will only have reduced functionality if you do. It is strongly recommended that you 
+## at least keep the 'toms' table from toms.db.
+default_tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'pages.db', 'toms'),
+                  ('doc_word_counts_sorted', 'toms.db', 'doc_word_counts')]
 
 
 class Loader(object):
@@ -68,6 +78,7 @@ class Loader(object):
         os.chdir(self.workdir) #questionable
         
     def parse_files(self,xpaths=None,metadata_xpaths=None):
+        print "\n### Parsing files ###"
         filequeue = self.fileinfo[:]
         print "%s: parsing %d files." % (time.ctime(),len(filequeue))
         procs = {}
@@ -118,6 +129,7 @@ class Loader(object):
         print "%s: done parsing" % time.ctime()
     
     def merge_objects(self):
+        print "\n### Merge parser output ###"
         wordsargs = "sort -m " + sort_by_word + " " + sort_by_id + " " + "*.words.sorted"
 #        words_result = open(self.workdir + "all_words_sorted","w")
         print >> sys.stderr, "%s: sorting words" % time.ctime()
@@ -150,6 +162,7 @@ class Loader(object):
         print >> sys.stderr, "%s: doc word count frequencies sort returned %d" % (time.ctime(),words_status)
 
     def analyze(self):
+        print "\n### Create inverted index ###"
         print self.omax
         vl = [max(int(math.ceil(math.log(float(x),2.0))),1) if x > 0 else 1 for x in self.omax]        
         print vl
@@ -206,125 +219,86 @@ class Loader(object):
             os.system('rm all_words_sorted')
 
     def make_tables(self):
-        tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'pages.db', 'toms'),
-                  ('doc_word_counts_sorted', 'doc_word_counts.db', 'toms')]
-        for file_in, db, table in tables:
+        print '\n### SQL Load ###'
+        print "Loading in the following tables:"
+        for file_in, db, table in self.tables:
+            print "%s table in %s database file..." % (table, db),
             file_in = self.workdir + "/%s" % file_in
-            if file_in.endswith('word_counts_sorted'):
-                self.toms_table("../toms.db")
-                self.word_counts_table(file_in, table, obj_type='doc')
-            else:
-                self.toms_table("../%s" % db)
-                self.make_toms_sql(file_in)
-                self.dbh.commit()
+            self.dbh = sqlite3.connect("../%s" % db)
+            self.dbh.text_factory = str
+            self.dbh.row_factory = sqlite3.Row
+            self.make_sql_table(file_in, table, obj_type='doc')
+            self.dbh.commit()
+            print 'done.'
             if self.clean:
                 os.system('rm %s' % file_in)
         if self.extra_tables:
             for fn in self.extra_tables:
                 fn(self)
                 
-    def toms_table(self, dbfile):
-        self.dbh = sqlite3.connect(dbfile)
-        self.dbh.text_factory = str
-        self.dbh.row_factory = sqlite3.Row
-        
-    def make_toms_sql(self, file_in):
-        known_fields = []
-        db = self.dbh
-        db.text_factory = str
-        db.execute("CREATE TABLE IF NOT EXISTS toms (philo_type,philo_name,philo_id,philo_seq);")
-        db.execute("CREATE INDEX type_index ON toms(philo_type);")
-        db.execute("CREATE INDEX id_index ON toms(philo_id);")
-        s = 0
-        for line in open(file_in):
-            (philo_type,philo_name,id,attrib) = line.split("\t",3)
-            fields = id.split(" ",8)
-            if len(fields) == 9: 
-                philo_id = " ".join(fields[:7])
-                raw_attr = attrib
-                #print raw_attr
-                r = {}
-                r["philo_type"] = philo_type
-                r["philo_name"] = philo_name
-                r["philo_id"] = philo_id
-                r["philo_seq"] = s
-                # I should add philo_parent here.  tricky to keep track of though.
-                attr = eval(raw_attr)
-                #print attr
-                for k in attr:
-                    if k not in known_fields:
-                        db.execute("ALTER TABLE toms ADD COLUMN %s;" % k) 
-                        # it seems like i can't safely interpolate column names. ah well.
-                        known_fields.append(k)
-                    r[k] = attr[k]
-                rk = []
-                rv = []
-                for k,v in r.items():
-                    rk.append(k)
-                    rv.append(v)
-                ks = "(%s)" % ",".join(x for x in rk)
-#                print ks
-#                print repr(rv)
-                insert = "INSERT INTO toms %s values (%s);" % (ks,",".join("?" for i in rv))
-                db.execute(insert,rv)
-                s += 1
-        db.commit()
-                
-    def word_counts_table(self, file_in, table, obj_type='doc'):
-        object_types = ['doc', 'div1', 'div2', 'div3', 'para', 'sent', 'word']
+    def make_sql_table(self, file_in, table, obj_type='doc'):
+        field_list = ['philo_type', 'philo_name', 'philo_id', 'philo_seq']
         depth = object_types.index(obj_type) + 1 ## this is for philo_id slices
+        conn = self.dbh
+        c = conn.cursor()
         
-        ## Retrieve column names from toms.db
-        original_fields = ['philo_type', 'philo_name', 'philo_id', 'philo_seq', '%s_token_count' % obj_type]
-        toms_conn = self.dbh
-        toms_c = toms_conn.cursor()
-        toms_c.execute('select * from toms')
-        extra_fields = [i[0] for i in toms_c.description if i[0] not in original_fields]
-        field_list = original_fields + extra_fields + ['bytes']
+        if table != 'toms':
+            ## Retrieve column names from toms
+            c.execute('select * from toms')
+            extra_fields = [i[0] for i in c.description if i[0] not in field_list]
+            field_list = field_list + extra_fields + ['bytes', '%s_token_count' % obj_type]
         
         ## Create table
-        conn = sqlite3.connect(self.destination + '/%s_word_counts.db' % obj_type)
-        conn.text_factory = str
-        c = conn.cursor()
         columns = ','.join(field_list)
         query = 'create table if not exists %s (%s)' % (table, columns)
         c.execute(query)
-        c.execute('create index word_index on %s (philo_name)' % table)
-        c.execute('create index philo_id_index on %s (philo_id)' % table)
+        if table == 'toms':
+            c.execute('create index type_index on %s (philo_type)' % table)
+            c.execute('create index id_index on %s (philo_id)' % table)
+        else:
+            c.execute('create index philo_name_index on %s (philo_name)' % table)
+            c.execute('create index philo_id_index on %s (philo_id)' % table)
         conn.commit()
         
         sequence = 0
         for line in open(file_in):
             (philo_type,philo_name,id,attrib) = line.split("\t",3)
-            philo_id = ' '.join(id.split()[:depth])
-            philo_id = philo_id + ' ' + ' '.join('0' for i in range(7 - depth))
-            row = {}
-            row["philo_type"] = philo_type
-            row["philo_name"] = philo_name
-            row["philo_id"] = philo_id
-            row["philo_seq"] = sequence
-            attrib = eval(attrib)
-            
-            ## Fetch missing fields from toms.db
-            toms_query = 'select %s from toms where philo_id=?' % ','.join(extra_fields)
-            toms_c.execute(toms_query, (philo_id,))
-            results = [i for i in toms_c.fetchone()]
-            row.update(dict(zip(extra_fields, results)))
-            
-            for k in attrib:
-                row[k] = attrib[k]
-            row_key = []
-            row_value = []
-            for k,v in row.items():
-                row_key.append(k)
-                row_value.append(v)
-            key_string = "(%s)" % ",".join(x for x in row_key)
-            insert = "INSERT INTO toms %s values (%s);" % (key_string,",".join("?" for i in row_value))
-            c.execute(insert,row_value)
-            sequence += 1       
+            fields = id.split(" ",8)
+            if len(fields) == 9:
+                row = {}
+                if table != 'toms':
+                    philo_id = ' '.join(id.split()[:depth])
+                    philo_id = philo_id + ' ' + ' '.join('0' for i in range(7 - depth))
+                    ## Fetch missing fields from toms
+                    toms_query = 'select %s from toms where philo_id=?' % ','.join(extra_fields)
+                    c.execute(toms_query, (philo_id,))
+                    results = [i for i in c.fetchone()]
+                    row.update(dict(zip(extra_fields, results)))
+                else:
+                    philo_id = " ".join(fields[:7])
+                row["philo_type"] = philo_type
+                row["philo_name"] = philo_name
+                row["philo_id"] = philo_id
+                row["philo_seq"] = sequence
+                attrib = eval(attrib)
+                for k in attrib:
+                    if k not in field_list:
+                        c.execute("ALTER TABLE toms ADD COLUMN %s;" % k)
+                        field_list.append(k)
+                    row[k] = attrib[k]
+                row_key = []
+                row_value = []
+                for k,v in row.items():
+                    row_key.append(k)
+                    row_value.append(v)
+                key_string = "(%s)" % ",".join(x for x in row_key)
+                insert = "INSERT INTO %s %s values (%s);" % (table, key_string,",".join("?" for i in row_value))
+                c.execute(insert,row_value)
+                sequence += 1       
         conn.commit()
 
     def finish(self, Philo_Types, Metadata_XPaths, Post_Filters=default_post_filters):
+        print "\n### Finishing up ###"
         os.mkdir(self.destination + "/src/")
         os.system("mv dbspecs4.h ../src/dbspecs4.h")
         

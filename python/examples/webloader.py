@@ -86,7 +86,7 @@ print "copied templates to %s" % template_destination
 ## Load the files ##
 ####################
 
-l = Loader(workers, filters=filters, clean=False)
+l = Loader(workers, filters=filters, clean=True)
 l.setup_dir(data_destination,files)
 l.parse_files(XPaths,Metadata_XPaths)
 l.merge_objects()

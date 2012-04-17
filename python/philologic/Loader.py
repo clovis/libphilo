@@ -13,7 +13,6 @@ from ast import literal_eval as eval
 from philologic import OHCOVector, Parser
 from philologic.LoadFilters import *
 from philologic.PostFilters import *
-from ExtraFilters import *
 
 
 ## Disable output buffering

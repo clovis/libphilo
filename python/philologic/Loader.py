@@ -13,6 +13,7 @@ from ast import literal_eval as eval
 from philologic import OHCOVector, Parser
 from philologic.LoadFilters import *
 from philologic.PostFilters import *
+from ExtraFilters import *
 
 
 ## Disable output buffering
@@ -39,7 +40,7 @@ default_tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'pages.d
 
 class Loader(object):
 
-    def __init__(self,workers=4,verbose=True, filters=default_filters, tables=default_tables, extra_tables=False, clean=True):
+    def __init__(self,workers=4,verbose=True, filters=default_filters, tables=default_tables, extra_tables=False, clean=True, debug=False):
         self.max_workers = workers 
         self.omax = [0,0,0,0,0,0,0,0,0]
         self.totalcounts = {}
@@ -50,6 +51,7 @@ class Loader(object):
         self.clean = clean
         self.sort_by_word = sort_by_word
         self.sort_by_id = sort_by_id
+        self.debug = debug
         
     def setup_dir(self,path,files):
         self.destination = path
@@ -227,7 +229,6 @@ class Loader(object):
             self.dbh.text_factory = str
             self.dbh.row_factory = sqlite3.Row
             self.make_sql_table(file_in, table, obj_type='doc')
-            self.dbh.commit()
             print 'done.'
             if self.clean:
                 os.system('rm %s' % file_in)
@@ -345,6 +346,7 @@ class Loader(object):
         print >> db_locals, "metadata_hierarchy = %s" % metadata_hierarchy
         print >> db_locals, "metadata_types = %s" % metadata_types
         print >> db_locals, "db_path = '%s'" % self.destination
+        print >> db_locals, "debug = %s" % self.debug
 
         print >> sys.stderr, "wrote metadata info to %s." % (self.destination + "/db.locals.py")
         

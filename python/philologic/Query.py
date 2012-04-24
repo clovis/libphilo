@@ -44,7 +44,7 @@ def query(db,terms,corpus_file=None,corpus_size=0,method=None,method_arg=None,li
             os._exit(0)
     else:
         hl.close()
-        return HitList.HitList(filename,words_per_hit)
+        return HitList.HitList(filename,words_per_hit,db)
 
 def format_query(qstring):
     q = [level.split("|") for level in qstring.split(" ") ]

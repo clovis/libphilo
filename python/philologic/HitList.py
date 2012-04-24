@@ -5,13 +5,16 @@ import sys
 import time
 import codecs
 import struct
+from HitWrapper import HitWrapper, ObjectWrapper
 
 class HitList(object):
-    def __init__(self,filename,words,doc=0,byte=6,method="proxy",methodarg = 3):
+    def __init__(self,filename,words,dbh,encoding=None,doc=0,byte=6,method="proxy",methodarg = 3):
         self.filename = filename
         self.words = words
         self.method = method
         self.methodarg = methodarg
+        self.dbh = dbh
+        self.encoding = encoding
         if method is not "cooc":
             self.has_word_id = 1
             self.length = 7 + 2 * (words)
@@ -20,7 +23,7 @@ class HitList(object):
             self.length = methodarg + 1 + (words)
         self.fh = open(self.filename) #need a full path here.
         self.format = "=%dI" % self.length #short for object id's, int for byte offset.
-        self.hitsize = struct.calcsize(self.format) 
+        self.hitsize = struct.calcsize(self.format)
         self.doc = doc
         self.byte = byte
         self.position = 0;
@@ -31,13 +34,28 @@ class HitList(object):
     def __getitem__(self,n):
         self.update()
         if isinstance(n,slice):
-            ret = []
-            for index in range(*(n.indices(self.count))):
-                ret.append(self.readhit(index))
-            return ret
-        else:
-            return self.readhit(n)
-        # We should check if search is finished, or if the item just doesn't exist.
+            return self.get_slice(n)
+        else:            
+            return HitWrapper(self.readhit(n),self.dbh)
+
+    def get_slice(self,n):
+        self.position = n.start or 0
+        while True:
+            if self.position is not None and self.position >= n.stop:
+                break
+            if self.position < len(self):
+                try:
+                    yield HitWrapper(self.readhit(self.position),self.dbh)
+                    self.position += 1
+                except IndexError:
+                    break
+            else:
+                self.update()
+                if self.done:
+                    break
+                else:
+                    time.sleep(0.1)
+                    self.update()
         
     def __len__(self):
         self.update()
@@ -46,52 +64,43 @@ class HitList(object):
     def __iter__(self):
         self.update()
         self.position = 0
-        return self
-        
-    def next(self):
-        if self.position < self.count:
-            oldposition = self.position
-            self.position += 1
-            return self.readhit(oldposition)
-        else:
-            raise StopIteration
-            
+        while True:
+            if self.position < len(self):
+                try:
+                    yield HitWrapper(self.readhit(self.position),self.dbh)
+                    self.position += 1
+                except IndexError:
+                    break
+            else:
+                self.update()
+                if self.done: 
+                    break
+                else:
+                    time.sleep(0.1)
+                    self.update()
+
     def update(self):
         #Since the file could be growing, we should frequently check size/ if it's finished yet.
-        self.size = os.stat(self.filename).st_size # in bytes
-        self.count = self.size / self.hitsize 
-        #need to have a reliable way to check if finished.  Ask Mark.
-        try: 
-            os.stat(self.filename + ".done")
-            self.done = True
-        except OSError:
+        if self.done:
             pass
-            
+        else:
+            try: 
+                os.stat(self.filename + ".done")
+                self.done = True
+            except OSError:
+                pass
+            self.size = os.stat(self.filename).st_size # in bytes
+            self.count = self.size / self.hitsize 
+
+
     def readhit(self,n):
         #reads hitlist into buffer, unpacks
         #should do some work to read k at once, track buffer state.
         self.update()
         if n >= self.count:
             raise IndexError
-        offset = self.hitsize * n;
-        self.fh.seek(offset)
+        if n != self.position:
+            offset = self.hitsize * n;
+            self.fh.seek(offset)
         buffer = self.fh.read(self.hitsize)
         return(struct.unpack(self.format,buffer))
-    
-    def get_doc(self,hit):
-        return hit[0]
-        
-    def get_bytes(self,hit):
-        if self.method is not "cooc":
-            rest = hit[7:]
-            bytes = []
-            while rest:
-                bytes.append(rest[1])
-                rest = rest[2:]
-        else:
-            bytes = hit[(int(self.methodarg)):]
-        bytes.reverse()
-        return bytes
-        
-    def get_words(self,hit):
-        pass

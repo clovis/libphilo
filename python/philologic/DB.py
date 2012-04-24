@@ -80,7 +80,6 @@ class DB:
             hash.update("%s=%s" % (key,"|".join(value)))
 
         if has_metadata:
-            print "has_metadata"
             corpus_hash = hash.hexdigest()
             corpus_file = "/var/lib/philologic/hitlists/" + corpus_hash + ".hitlist"
             corpus_width = 7
@@ -103,7 +102,6 @@ class DB:
         else:
             corpus = None
         if qs:
-            print "has qs"
             words_per_hit = len(qs.split(" "))
             hash.update(qs)
             hash.update(method)
@@ -111,12 +109,9 @@ class DB:
             hash.update(str(limit))
             search_hash = hash.hexdigest()
             search_file = "/var/lib/philologic/hitlists/" + search_hash + ".hitlist"
-            print search_file
             if not os.path.isfile(search_file):
-                print "running search"
                 return Query.query(self,qs,corpus_file,self.width,method,method_arg,limit,filename=search_file)
             else:
-                print "cached"
                 return HitList.HitList(search_file,words_per_hit,self)
         else:
             if corpus:

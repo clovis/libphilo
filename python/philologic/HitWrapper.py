@@ -7,7 +7,6 @@ from itertools import islice
 obj_dict = {'doc': 1, 'div1': 2, 'div2': 3, 'div3': 4,
             'para': 5, 'sent': 6, 'word': 7}
 
-
 class HitWrapper(object):
 
     def __init__(self, hit, db, obj_type=False, encoding=None):
@@ -26,13 +25,13 @@ class HitWrapper(object):
 
     def __getitem__(self, key):
         if key in obj_dict:
-            return ObjectWrapper(self.hit, self.bytes, self.db, obj_type=key)
+            return ObjectWrapper(self.hit, self.db, obj_type=key,encoding=self.encoding)
         else:
             return self.__metadata_lookup(key)
     
     def __getattr__(self, name):
         if name in obj_dict:
-            return ObjectWrapper(self.hit, self.bytes, self.db, obj_type=name)
+            return ObjectWrapper(self.hit, self.db, obj_type=name,encoding=self.encoding)
         else:
             return self.__metadata_lookup(name)
         
@@ -64,7 +63,7 @@ class HitWrapper(object):
            
 class ObjectWrapper(object):
     
-    def __init__(self, hit, db, obj_type=False, encoding='utf-8'):
+    def __init__(self, hit, db, obj_type=False, encoding=None):
         self.db = db
         self.hit = hit
         if obj_type:
@@ -83,13 +82,13 @@ class ObjectWrapper(object):
 
     def __getitem__(self, key):
         if key in obj_dict:
-            return ObjectWrapper(self.hit, self.bytes, self.db, key)
+            return ObjectWrapper(self.hit, self.db, key,encoding=self.encoding)
         else:
             return self.__metadata_lookup(key)
         
     def __getattr__(self, name):
         if name in obj_dict:
-            return ObjectWrapper(self.hit, self.bytes, self.db, name)
+            return ObjectWrapper(self.hit, self.db, name,encoding=self.encoding)
         else:
             return self.__metadata_lookup(name)
         

@@ -3,10 +3,6 @@ import shlaxtree
 import AbstractParser5
 import DirtyFormatter
 import DirtyParser
-import DynamicForm
-import HitList
 import OHCOVector
-import PhiloDB
-import Query
 import TEIParser
-import SqlToms
+from DB import DB

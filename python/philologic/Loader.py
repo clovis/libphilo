@@ -13,7 +13,7 @@ from ast import literal_eval as eval
 from philologic import OHCOVector, Parser
 from philologic.LoadFilters import *
 from philologic.PostFilters import *
-from ExtraFilters import *
+#from ExtraFilters import *
 
 
 ## Disable output buffering
@@ -78,7 +78,7 @@ class Loader(object):
         
         os.chdir(self.workdir) #questionable
         
-    def parse_files(self,xpaths=None,metadata_xpaths=None):
+    def parse_files(self,xpaths=None,metadata_xpaths=None,self_closing_tags=[],non_nesting_tags=[],pseudo_empty_tags=[]):
         print "\n### Parsing files ###"
         filequeue = self.fileinfo[:]
         print "%s: parsing %d files." % (time.ctime(),len(filequeue))
@@ -105,7 +105,7 @@ class Loader(object):
                     i = codecs.open(text["newpath"],"r",)
                     o = codecs.open(text["raw"], "w",) # only print out raw utf-8, so we don't need a codec layer now.
                     print "%s: parsing %d : %s" % (time.ctime(),text["id"],text["name"])
-                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,output=o)
+                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,self_closing_tags=self_closing_tags,non_nesting_tags=non_nesting_tags,pseudo_empty_tags=pseudo_empty_tags,output=o)
                     r = parser.parse(i)  
                     i.close()
                     o.close()

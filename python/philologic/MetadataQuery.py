@@ -109,6 +109,9 @@ def hit_to_string(hit,width):
     hit_string += "".join(" 0" for n in range(pad))
     return hit_string
 
+def str_to_hit(string):
+    return [int(x) for x in string.split(" ")]
+
 def obj_cmp(x,y):
     for a,b in zip(x,y):
         if a < b:
@@ -137,6 +140,11 @@ def query_lowlevel(db,param_dict):
         query = "SELECT philo_id FROM toms WHERE " + " AND ".join("(%s)" % c for c in clauses) + ";"
     else:
         query = "SELECT philo_id FROM toms;"
+#    vars = [v.decode("utf-8") for v in vars]
+    print >> sys.stderr, "%s %% %s" % (query,vars)
+    for v in vars:
+        print >> sys.stderr, "%s : %s" % (type(v),repr(v))
+
     results = db.dbh.execute(query,vars)
     return results
 
@@ -150,7 +158,7 @@ def query_recursive(db,param_dict,parent):
         for inner_hit in r:
             while corpus_cmp(str_to_hit(outer_hit["philo_id"]),str_to_hit(inner_hit["philo_id"])) < 0:
                 try:
-                    outer_hit = next(corpus)
+                    outer_hit = next(r)
                 except StopIteration:
                     return
             if corpus_cmp(str_to_hit(outer_hit["philo_id"]),str_to_hit(inner_hit["philo_id"])) > 0:

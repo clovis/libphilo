@@ -12,6 +12,17 @@ class HitWrapper(object):
     def __init__(self, hit, db, obj_type=False, encoding=None):
         self.db = db
         self.hit = hit
+        print >> sys.stderr, self.hit
+        self.bytes = []
+        self.wordids = []
+        word_data = list(hit)[7:]
+        while word_data:
+            try:
+                self.wordids.append(word_data.pop(0))
+                self.bytes.append(word_data.pop(0))
+            except IndexError:
+                pass
+        self.bytes.sort()
         self.philo_id = hit
         self.encoding = encoding
         if obj_type:
@@ -21,6 +32,7 @@ class HitWrapper(object):
                 length = len(hit[:hit.index(0)])
             except ValueError:
                 length = len(hit)
+            if length >= 7: length = 7
             self.type = [k for k in obj_dict if obj_dict[k] == length][0]
 
     def __getitem__(self, key):
@@ -51,9 +63,9 @@ class HitWrapper(object):
             width -= 1
         if metadata == None:
             metadata = ''
-        if self.encoding:
+        if self.db.encoding:
             try:
-                return metadata.decode(self.encoding, 'ignore')
+                return metadata.decode(self.db.encoding, 'ignore')
             except AttributeError:
                 ## if the metadata is an integer
                 return metadata
@@ -101,9 +113,9 @@ class ObjectWrapper(object):
             metadata = ''
         if metadata == None:
             metadata = ''
-        if self.encoding:
+        if self.db.encoding:
             try:
-                return metadata.decode(self.encoding, 'ignore')
+                return metadata.decode(self.db.encoding, 'ignore')
             except AttributeError:
                 ## if the metadata is an integer
                 return metadata

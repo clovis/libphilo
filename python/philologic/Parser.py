@@ -1,6 +1,7 @@
 from philologic import OHCOVector, shlaxtree
 from philologic.ParserHelpers import *
 import re
+import sys
 
 et = shlaxtree.et  # MAKE SURE you use ElementTree version 1.3.
                    # This is standard in Python 2.7, but an add on in 2.6,
@@ -52,10 +53,10 @@ TEI_MetadataXPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStm
                       (AttributeExtractor,".@src","img")],
            }
 
-Default_Token_Regexp = r"([^ \.,;:?!\"\n\r\t]+)|([\.;:?!])"
+Default_Token_Regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)|([\.;:?!])"
 
 class Parser:
-    def __init__(self,known_metadata,docid,format=ARTFLVector,parallel=ARTFLParallels,xpaths=None,metadata_xpaths = None,token_regexp = Default_Token_Regexp,non_nesting_tags = [],self_closing_tags = [],pseudo_empty_tags = [],output=None):
+    def __init__(self,known_metadata,docid,format=ARTFLVector,parallel=ARTFLParallels,xpaths=None,metadata_xpaths = None,token_regex=Default_Token_Regex,non_nesting_tags = [],self_closing_tags = [],pseudo_empty_tags = [],output=None):
         self.known_metadata = known_metadata
         self.docid = docid
         self.i = shlaxtree.ShlaxIngestor(target=self)
@@ -68,7 +69,7 @@ class Parser:
         # OHCOVector should take an output file handle.
         self.extractors = []
         self.file_position = 0
-        self.token_regexp = token_regexp
+        self.token_regex = token_regex
         self.non_nesting_tags = non_nesting_tags
         self.self_closing_tags = self_closing_tags
         self.pseudo_empty_tags = pseudo_empty_tags
@@ -124,12 +125,12 @@ class Parser:
                     # Set up metadata extractors for the new Record
                     if ohco_type in self.metadata_paths:
                         for extractor,pattern,field in self.metadata_paths[ohco_type]:
-                            self.extractors.append(extractor(pattern,field,new_element,self.v[ohco_type])) 
+                            self.extractors.append( (extractor(pattern,field,new_element,self.v[ohco_type]),len(self.stack))) 
                     break   # Don't check any other paths.
                 
             # Extract any metadata in the attributes 
-            for e in self.extractors:
-                e(new_element,event)
+            for ex,depth in self.extractors:
+                ex(new_element,event)
                         
             # If self closing, immediately close the tag
             if name in self.self_closing_tags:
@@ -140,26 +141,25 @@ class Parser:
             # Extract metadata if necessary.
             if self.stack:
                 current_element = self.stack[-1]
-                for e in self.extractors:
-                    e(current_element,event) # EXTRACTORS NEED TO USE NEW STACK API
+                for ex,depth in self.extractors:
+                    ex(current_element,event) # EXTRACTORS NEED TO USE NEW STACK API
                     # Should test whether to go on and tokenize or not.
-                        
-            # Tokenize and emit tokens.  Still a bit hackish.
-            # TODO: Tokenizer object shared with output formatter. 
-            tokens = re.finditer(r"([^ \.,;:?!\"\s\(\)]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
-            for t in tokens:
-                if t.group(1):
-                    # This will implicitly push a sentence if we aren't in one already.
-                    self.v.push("word",t.group(1).lower(),offset + t.start(1)) 
-                    self.v.pull("word",offset + t.end(1)) 
-                elif t.group(2): 
-                    # a sentence should already be defined most of the time.
-                    if "sent" not in self.v:
-                        # but we'll make sure one is.
-                        self.v.push("sent",t.group(2),offset)
-                    # if we have a sentence, set its name attribute to the punctuation that has now ended it.
-                    self.v["sent"].name = t.group(2)                     
-                    self.v.pull("sent",offset + t.end(2))
+                # Tokenize and emit tokens.  Still a bit hackish.
+                # TODO: Tokenizer object shared with output formatter. 
+                tokens = re.finditer(self.token_regex,content) # should put in a nicer tokenizer.
+                for t in tokens:
+                    if t.group(1):
+                        # This will implicitly push a sentence if we aren't in one already.
+                        self.v.push("word",t.group(1).lower(),offset + t.start(1)) 
+                        self.v.pull("word",offset + t.end(1)) 
+                    elif t.group(2): 
+                        # a sentence should already be defined most of the time.
+                        if "sent" not in self.v:
+                            # but we'll make sure one is.
+                            self.v.push("sent",t.group(2),offset)
+                        # if we have a sentence, set its name attribute to the punctuation that has now ended it.
+                        self.v["sent"].name = t.group(2)                     
+                        self.v.pull("sent",offset + t.end(2))
 
         if e_type == "end":
 
@@ -175,9 +175,15 @@ class Parser:
                         self.v.pull(ohco_type,offset + len(content))
                         del self.pushed_tags[old_element.tag]
                     # clean up any metadata extractors instantiated for this element.
-                    for ex in self.extractors:
-                        if ex.context == old_element:
-                            self.extractors.remove(ex)
+                    current_depth = len(self.stack)
+                    for ex,depth in self.extractors:
+#                        print "%s vs %s" % (ex.context,old_element)
+#                        if ex.context not in self.stack:
+#                            print "removing"
+                         if depth > current_depth:
+                             self.extractors.remove((ex,depth))
+#                    for ex,depth in self.extractors:
+#                        print "%s:%s@%d" % (ex,ex.context,depth)
 
                     # prune the tree.
                     old_element.clear() # empty old element.

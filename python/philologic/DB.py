@@ -5,6 +5,8 @@ import sqlite3
 import re
 import MetadataQuery
 import HitList
+import sys
+from HitWrapper import HitWrapper
 from philologic import Query,shlax
 
 def hit_to_string(hit,width):
@@ -43,6 +45,7 @@ class DB:
 
     def __getitem__(self,item):
         hit = self.get_id_lowlevel(item)
+        hit = [int(x) for x in hit["philo_id"].split(" ")]
         return HitWrapper(hit,self)
 
     def get_id_lowlevel(self,item):
@@ -59,11 +62,9 @@ class DB:
         all_hash = hash.hexdigest()
         all_file = "/var/lib/philologic/hitlists/" + all_hash + ".hitlist"
         if not os.path.isfile(all_file):
-            print "running all query"
             #write out the corpus file
             return MetadataQuery.metadata_query(self,all_file,[{"philo_type":['"%s"' % philo_type]}])
         else:
-            print "cached all query"
             return HitList.HitList(all_file,0,self)
 
     def query(self,qs="",method="",method_arg=0,limit=10000000,**metadata):
@@ -74,10 +75,16 @@ class DB:
         corpus_file = None
 
         for key,value in metadata.items():
-            has_metadata = True
             if isinstance(value,str):
-                value = [value]
-            hash.update("%s=%s" % (key,"|".join(value)))
+                if value == "":
+                    pass
+                else:
+                    value = [value]
+                    metadata[key] = value
+            value = [v for v in value if v]
+            if value:
+                has_metadata = True
+                hash.update("%s=%s" % (key,"|".join(value)))
 
         if has_metadata:
             corpus_hash = hash.hexdigest()
@@ -88,17 +95,24 @@ class DB:
                 # before we query, we need to figure out what type each parameter belongs to,
                 # and sort them into a list of dictionaries, one for each type.
                 metadata_dicts = [{} for level in self.locals["metadata_hierarchy"]]
+#                print >> sys.stderr, "querying %s" % repr(metadata.items())
                 for k,v in metadata.items():
                     for i, params in enumerate(self.locals["metadata_hierarchy"]):
                         if v and (k in params):
                             metadata_dicts[i][k] = v
                             if k in self.locals["metadata_types"]:
-                                metadata_dicts[i]["philo_type"] = ['"%s"' % self.locals["metadata_types"][k]]
+                                this_type = self.locals["metadata_types"][k]
+                                if this_type == "div":
+                                    metadata_dicts[i]["philo_type"] = ['"div"|"div1"|"div2"|"div3"']
+                                else:
+                                    metadata_dicts[i]["philo_type"] = ['"%s"' % self.locals["metadata_types"][k]]
                 metadata_dicts = [d for d in metadata_dicts if d]
-                print "metadata_dicts: %s" % repr(metadata_dicts)
                 corpus = MetadataQuery.metadata_query(self,corpus_file,metadata_dicts)
             else:
+#                print >> sys.stderr, "cached @ %s" % corpus_file
                 corpus = HitList.HitList(corpus_file,0,self)
+                corpus.finish()
+            print >> sys.stderr, "corpus file of length %d" % len(corpus)
         else:
             corpus = None
         if qs:

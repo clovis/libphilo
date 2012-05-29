@@ -8,27 +8,13 @@ from philologic.LoadFilters import *
 from philologic.Parser import Parser
 from philologic.ParserHelpers import *
 
+
 ##########################
 ## System Configuration **
 ##########################
-
-# Set the filesytem path to the root web directory for your PhiloLogic install.
-database_root = None 
-# /var/www/philologic/ is conventional for linux,
-# /Library/WebServer/Documents/philologic for Mac OS.
-# Please follow the instructions in INSTALLING before use.
-
-# Set the URL path to the same root directory for your philologic install.
-url_root = None 
-# http://localhost/philologic is appropriate if you don't have a DNS hostname.
-
-if database_root is None or url_root is None:
-    print >> sys.stderr, "Please configure the loader script before use."
-    exit()
-
+database_root = "/Library/WebServer/Documents/philo4beta2/"
 install_dir = database_root + "_system_dir/_install_dir/"
-# The load process will fail if you haven't set up the install_dir at the correct location.
-
+url_root = "http://robespierre.ci.uchicago.edu/philo4beta2/"
 
 ###########################
 ## Configuration options ##
@@ -41,12 +27,11 @@ dbname = sys.argv[1]
 files = sys.argv[2:]
 
 # Define how many cores you want to use
-workers = 4
+workers = 6
 
 # Define filters as a list of functions to call, either those in Loader or outside
+# an empty list is the default
 filters = [make_word_counts, generate_words_sorted,make_token_counts,sorted_toms, prev_next_obj, word_frequencies_per_obj,generate_pages, make_max_id]
-
-# Data tables to store.
 tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'toms.db', 'pages')]
 
 ###########################
@@ -61,13 +46,13 @@ XPaths = {  ".":"doc", # Always fire a doc against the document root.
             ".//div1":"div",
             ".//div2":"div",
             ".//div3":"div",
-            ".//p":"para",
-            ".//sp":"para",
+            ".//p":"para",            
+            #".//sp":"para",
             #"stage":"para"
             ".//pb":"page",
          } 
 
-Metadata_XPaths = { # metadata per type.  '.' is in this case the base element for the type, as specified in XPaths above.
+Metadata_XPaths = { 
              "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStmt/author","author"),
                       (ContentExtractor,"./teiHeader/fileDesc/titleStmt/title", "title"),
                       (ContentExtractor,"./teiHeader/sourceDesc/biblFull/publicationStmt/date", "date"),
@@ -86,15 +71,6 @@ Metadata_XPaths = { # metadata per type.  '.' is in this case the base element f
 non_nesting_tags = ["div1","div2","div3","p","P"]
 self_closing_tags = ["pb","p","Xdiv","note","span","br","P","BR",]
 pseudo_empty_tags = []
-
-word_regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)"
-punct_regex = r"([\.;:?!])"
-
-token_regex = word_regex + "|" + punct_regex 
-
-#############################
-# Actual work.  Don't edit. #
-#############################
 
 os.environ["LC_ALL"] = "C" # Exceedingly important to get uniform sort order.
 os.environ["PYTHONIOENCODING"] = "utf-8" 
@@ -125,10 +101,11 @@ print "copied templates to %s" % template_destination
 
 l = Loader(workers, filters=filters, tables=tables, clean=True)
 l.setup_dir(data_destination,files)
-l.parse_files(XPaths,Metadata_XPaths,token_regex,non_nesting_tags,self_closing_tags,pseudo_empty_tags)
+l.parse_files(XPaths,Metadata_XPaths,non_nesting_tags,self_closing_tags,pseudo_empty_tags)
 l.merge_objects()
 l.analyze()
 l.make_tables()
 l.finish(Philo_Types, Metadata_XPaths,db_url=db_url)
 print >> sys.stderr, "done indexing."
 print >> sys.stderr, "db viewable at " + db_url
+

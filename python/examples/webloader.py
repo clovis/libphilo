@@ -101,7 +101,7 @@ os.environ["PYTHONIOENCODING"] = "utf-8"
     
 template_destination = database_root + dbname
 data_destination = template_destination + "/data"
-db_url = url_root + dbname + "/dispatcher.py"
+db_url = url_root + "/" + dbname
 
 try:
     os.mkdir(template_destination)
@@ -131,4 +131,4 @@ l.analyze()
 l.make_tables()
 l.finish(Philo_Types, Metadata_XPaths,db_url=db_url)
 print >> sys.stderr, "done indexing."
-print >> sys.stderr, "db viewable at " + db_url
+print >> sys.stderr, "db viewable at " + db_url + "/dispatcher.py/form"

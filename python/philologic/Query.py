@@ -28,7 +28,7 @@ def query(db,terms,corpus_file=None,corpus_size=0,method=None,method_arg=None,li
             os._exit(0)
         else:
             #now we're detached from the parent, and can do our work.
-            args = ["search4", db,"--limit",str(limit)]
+            args = ["search4", db.path,"--limit",str(limit)]
             if corpus_file and corpus_size:
                 args.extend(("--corpusfile", corpus_file , "--corpussize" , str(corpus_size)))
             if method and method_arg:
@@ -44,7 +44,7 @@ def query(db,terms,corpus_file=None,corpus_size=0,method=None,method_arg=None,li
             os._exit(0)
     else:
         hl.close()
-        return HitList.HitList(filename,words_per_hit)
+        return HitList.HitList(filename,words_per_hit,db)
 
 def format_query(qstring):
     q = [level.split("|") for level in qstring.split(" ") ]

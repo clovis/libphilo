@@ -129,3 +129,42 @@ def count_tokens(record_list, depth, output_file):
             token_count = object_types[len(philo_id)-1] + '_token_count'
             new_record.attrib[token_count] = record_dict[philo_id]
         print >> output_file, new_record
+
+def word_frequencies_per_obj(loader_obj, text, depth=1):
+    object_types = ['doc', 'div1', 'div2', 'div3', 'para', 'sent', 'word'][:depth]
+    files_path = loader_obj.destination + '/WORK/'
+    try:
+        os.mkdir(files_path)
+    except OSError:
+        ## Path was already created                                                                                                                                       
+        pass
+    for d, obj in enumerate(object_types):
+        file = text['name'] + '.%s.sorted' % obj
+        output = open(files_path + file, 'w')
+        d = d + 1
+        old_philo_id = []
+        records = {}
+        for line in open(text['words']):
+            type, word, id, attrib = line.split('\t')
+            attrib = eval(attrib)
+            philo_id = id.split()
+            record = Record(type, word, philo_id)
+            count_key = obj + '_token_count'
+            byte = attrib['byte_start']
+            del attrib['byte_start']
+            record.attrib = {count_key: attrib[count_key]}
+            if philo_id[:d] != old_philo_id[:d]:
+                if records:
+                    for w in records:
+                        print >> output, records[w]
+                        records = {}
+            if word not in records:
+                record.attrib['bytes'] = []
+                record.attrib['bytes']= str(byte)
+                records[word] = record
+            else:
+                records[word].attrib['bytes'] += ' ' + str(byte)
+            old_philo_id = philo_id
+        for w in records:
+            print >> output, records[w]
+        output.close()

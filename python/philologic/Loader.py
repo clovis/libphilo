@@ -13,7 +13,7 @@ from ast import literal_eval as eval
 from philologic import OHCOVector, Parser
 from philologic.LoadFilters import *
 from philologic.PostFilters import *
-from ExtraFilters import *
+#from ExtraFilters import *
 
 
 ## Disable output buffering
@@ -34,15 +34,18 @@ default_post_filters = [index_metadata_fields]
 ## While these tables are loaded by default, you can override that default, although be aware
 ## that you will only have reduced functionality if you do. It is strongly recommended that you 
 ## at least keep the 'toms' table from toms.db.
-default_tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'pages.db', 'toms'),
+default_tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'toms.db', 'pages'),
                   ('doc_word_counts_sorted', 'toms.db', 'doc_word_counts')]
+
+
+default_token_regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)|([\.;:?!])"
 
 
 class Loader(object):
 
     def __init__(self,workers=4,verbose=True, filters=default_filters, tables=default_tables, extra_tables=False, clean=True, debug=False):
         self.max_workers = workers 
-        self.omax = [0,0,0,0,0,0,0,0,0]
+        self.omax = [1,1,1,1,1,1,1,1,1]
         self.totalcounts = {}
         self.verbose = verbose
         self.filters = filters
@@ -78,7 +81,7 @@ class Loader(object):
         
         os.chdir(self.workdir) #questionable
         
-    def parse_files(self,xpaths=None,metadata_xpaths=None):
+    def parse_files(self,xpaths=None,metadata_xpaths=None,token_regex=default_token_regex,non_nesting_tags=[],self_closing_tags=[],pseudo_empty_tags=[]):
         print "\n### Parsing files ###"
         filequeue = self.fileinfo[:]
         print "%s: parsing %d files." % (time.ctime(),len(filequeue))
@@ -105,8 +108,15 @@ class Loader(object):
                     i = codecs.open(text["newpath"],"r",)
                     o = codecs.open(text["raw"], "w",) # only print out raw utf-8, so we don't need a codec layer now.
                     print "%s: parsing %d : %s" % (time.ctime(),text["id"],text["name"])
-                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,output=o)
-                    r = parser.parse(i)  
+                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,token_regex=default_token_regex,non_nesting_tags=non_nesting_tags,self_closing_tags=self_closing_tags,pseudo_empty_tags=pseudo_empty_tags,output=o)
+                    try:
+                        r = parser.parse(i)  
+                    except RuntimeError:
+                        print >> sys.stderr, "parse failure: XML stack explosion : %s" % [el.tag for el in parser.stack]
+                        exit(1)
+                    except:
+                        print >> sys.stderr, "parse failure: unknown"
+                        exit(2)
                     i.close()
                     o.close()
 
@@ -122,6 +132,9 @@ class Loader(object):
     
             #if we are at max_workers children, or we're out of texts, the parent waits for any child to exit.
             pid,status = os.waitpid(0,0) # this hangs until any one child finishes.  should check status for problems.
+            if status:
+                print "parsing failed for %s" % procs[pid]
+                exit()
             done += 1 
             workers -= 1
             vec = cPickle.load(open(procs[pid])) #load in the results from the child's parsework() function.
@@ -165,7 +178,7 @@ class Loader(object):
     def analyze(self):
         print "\n### Create inverted index ###"
         print self.omax
-        vl = [max(int(math.ceil(math.log(float(x),2.0))),1) if x > 0 else 1 for x in self.omax]        
+        vl = [max(int(math.ceil(math.log(float(x) + 1.0,2.0))),1) if x > 0 else 1 for x in self.omax]        
         print vl
         width = sum(x for x in vl)
         print str(width) + " bits wide."
@@ -253,11 +266,11 @@ class Loader(object):
         query = 'create table if not exists %s (%s)' % (table, columns)
         c.execute(query)
         if table == 'toms':
-            c.execute('create index type_index on %s (philo_type)' % table)
-            c.execute('create index id_index on %s (philo_id)' % table)
+            c.execute('create index %s_type_index on %s (philo_type)' % (table,table))
+            c.execute('create index %s_id_index on %s (philo_id)' % (table,table))
         else:
-            c.execute('create index philo_name_index on %s (philo_name)' % table)
-            c.execute('create index philo_id_index on %s (philo_id)' % table)
+            c.execute('create index %s_philo_name_index on %s (philo_name)' % (table,table))
+            c.execute('create index %s_philo_id_index on %s (philo_id)' % (table,table))
         conn.commit()
         
         sequence = 0
@@ -283,7 +296,7 @@ class Loader(object):
                 attrib = eval(attrib)
                 for k in attrib:
                     if k not in field_list:
-                        c.execute("ALTER TABLE toms ADD COLUMN %s;" % k)
+                        c.execute("ALTER TABLE %s ADD COLUMN %s;" % (table,k))
                         field_list.append(k)
                     row[k] = attrib[k]
                 row_key = []
@@ -297,7 +310,7 @@ class Loader(object):
                 sequence += 1       
         conn.commit()
 
-    def finish(self, Philo_Types, Metadata_XPaths, Post_Filters=default_post_filters):
+    def finish(self, Philo_Types, Metadata_XPaths, Post_Filters=default_post_filters, **extra_locals):
         print "\n### Finishing up ###"
         os.mkdir(self.destination + "/src/")
         os.system("mv dbspecs4.h ../src/dbspecs4.h")
@@ -347,6 +360,8 @@ class Loader(object):
         print >> db_locals, "metadata_types = %s" % metadata_types
         print >> db_locals, "db_path = '%s'" % self.destination
         print >> db_locals, "debug = %s" % self.debug
+        for k,v in extra_locals.items():
+            print >> db_locals, "%s = %s" % (k,repr(v))
 
         print >> sys.stderr, "wrote metadata info to %s." % (self.destination + "/db.locals.py")
         

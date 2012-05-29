@@ -1,6 +1,7 @@
 from philologic import OHCOVector, shlaxtree
 from philologic.ParserHelpers import *
 import re
+import sys
 
 et = shlaxtree.et  # MAKE SURE you use ElementTree version 1.3.
                    # This is standard in Python 2.7, but an add on in 2.6,
@@ -52,10 +53,10 @@ TEI_MetadataXPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStm
                       (AttributeExtractor,".@src","img")],
            }
 
-Default_Token_Regexp = r"([^ \.,;:?!\"\n\r\t]+)|([\.;:?!])"
+Default_Token_Regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)|([\.;:?!])"
 
 class Parser:
-    def __init__(self,known_metadata,docid,format=ARTFLVector,parallel=ARTFLParallels,xpaths=None,metadata_xpaths = None,token_regexp = Default_Token_Regexp,output=None):
+    def __init__(self,known_metadata,docid,format=ARTFLVector,parallel=ARTFLParallels,xpaths=None,metadata_xpaths = None,token_regex=Default_Token_Regex,non_nesting_tags = [],self_closing_tags = [],pseudo_empty_tags = [],output=None):
         self.known_metadata = known_metadata
         self.docid = docid
         self.i = shlaxtree.ShlaxIngestor(target=self)
@@ -68,7 +69,11 @@ class Parser:
         # OHCOVector should take an output file handle.
         self.extractors = []
         self.file_position = 0
-        self.token_regexp = token_regexp
+        self.token_regex = token_regex
+        self.non_nesting_tags = non_nesting_tags
+        self.self_closing_tags = self_closing_tags
+        self.pseudo_empty_tags = pseudo_empty_tags
+        self.pushed_tags = {}
         
     def parse(self,input):
         """Top level function for reading a file and printing out the output."""
@@ -97,82 +102,96 @@ class Parser:
                 self.root = et.Element(name,attrib) 
                 new_element = self.root
             else:
+                if name in self.non_nesting_tags:
+                    tag_stack = [el.tag for el in self.stack]
+                    if name in tag_stack:
+                        pull_to = tag_stack.index(name)
+                        tags_to_pull = tag_stack[pull_to:]
+                        tags_to_pull.reverse()
+                        for tag in tags_to_pull:
+                            self.feed( "end","",offset,tag,{})
                 new_element = et.SubElement(self.stack[-1],name,attrib)
-            self.stack.append(new_element)
 
+            self.stack.append(new_element)
             # see if this Element should emit a new Record
             for xpath,ohco_type in self.map.items():
                 if new_element in self.root.findall(xpath):
-                    if new_element == self.root:
-                        new_records = self.v.push(ohco_type,name,offset) 
+                    self.v.push(ohco_type,name,offset)
+                    self.pushed_tags[name] = ohco_type
+                    if ohco_type == 'doc':
                         for key,value in self.known_metadata.items():
-                            self.v[ohco_type][key] = value
-                    else:
-                        self.v.push(ohco_type,name,offset) 
+                            self.v[ohco_type][key] = value                        
 
-                    # Set up metadata extractors for the new Record.
-                    # These get called for each child node or text event, until you hit a new record.
-                    # We could keep a stack of extractors for multiple simultaneous 
-    
+                    # Set up metadata extractors for the new Record
                     if ohco_type in self.metadata_paths:
-                        self.extractors = []
                         for extractor,pattern,field in self.metadata_paths[ohco_type]:
-                            self.extractors.append(extractor(pattern,field,new_element,self.v[ohco_type])) 
+                            self.extractors.append( (extractor(pattern,field,new_element,self.v[ohco_type]),len(self.stack))) 
                     break   # Don't check any other paths.
                 
-            # Attribute extraction done after new Element/Record, 
-            for e in self.extractors:
-                e(new_element,event)
+            # Extract any metadata in the attributes 
+            for ex,depth in self.extractors:
+                ex(new_element,event)
+                        
+            # If self closing, immediately close the tag
+            if name in self.self_closing_tags:
+                self.feed("end","",offset,name,{})
 
         if e_type == "text":
 
             # Extract metadata if necessary.
             if self.stack:
                 current_element = self.stack[-1]
-                for e in self.extractors:
-                    e(current_element,event) # EXTRACTORS NEED TO USE NEW STACK API
+                for ex,depth in self.extractors:
+                    ex(current_element,event) # EXTRACTORS NEED TO USE NEW STACK API
                     # Should test whether to go on and tokenize or not.
-                        
-            # Tokenize and emit tokens.  Still a bit hackish.
-            # TODO: Tokenizer object shared with output formatter. 
-            # Should push a sentence by default here, if we're in a new para/div/doc.  sent byte ordering is not quite right.
-            tokens = re.finditer(r"([^ \.,;:?!\"\s\(\)]+)|([\.;:?!])",content,re.U) # should put in a nicer tokenizer.
-            for t in tokens:
-                if t.group(1):
-                    # This will implicitly push a sentence if we aren't in one already.
-                    self.v.push("word",t.group(1).lower(),offset + t.start(1)) 
-                    self.v.pull("word",offset + t.end(1)) 
-                elif t.group(2): 
-                    # a sentence should already be defined most of the time.
-                    if "sent" not in self.v:
-                        self.v.push("sent",t.group(2),offset)
-                    self.v["sent"].name = t.group(2) 
-                    self.v.pull("sent",offset + t.end(2))
+                # Tokenize and emit tokens.  Still a bit hackish.
+                # TODO: Tokenizer object shared with output formatter. 
+                tokens = re.finditer(self.token_regex,content) # should put in a nicer tokenizer.
+                for t in tokens:
+                    if t.group(1):
+                        # This will implicitly push a sentence if we aren't in one already.
+                        self.v.push("word",t.group(1).lower(),offset + t.start(1)) 
+                        self.v.pull("word",offset + t.end(1)) 
+                    elif t.group(2): 
+                        # a sentence should already be defined most of the time.
+                        if "sent" not in self.v:
+                            # but we'll make sure one is.
+                            self.v.push("sent",t.group(2),offset)
+                        # if we have a sentence, set its name attribute to the punctuation that has now ended it.
+                        self.v["sent"].name = t.group(2)                     
+                        self.v.pull("sent",offset + t.end(2))
 
         if e_type == "end":
-            if self.stack:
-                current_element = self.stack[-1]
-                for xpath,ohco_type in self.map.items():
-                    # print "matching stack %s against %s for closure" % (self.stack,xpath)
-                    if current_element in self.root.findall(xpath):
-                        self.v.pull(ohco_type,offset + len(content)) # ADD BYTE
-                        break 
 
             if self.stack: # All elements get pulled of the stack..
                 if self.stack[-1].tag == name:
                     old_element = self.stack.pop()
-                    # This can go badly out of whack if you're just missing one end tag, 
-                    # The OHCOVector is resilient enough to handle it a lot of the time.
-                    # Filter your events BEFORE the parser if you have especially ugly HTML or SGML.
+                    # This can go badly out of whack if you're just missing one end tag 
+                    if old_element.tag in self.pushed_tags and name not in self.pseudo_empty_tags:
+                        # pseudo_empty_tags are popped off the XML stack, 
+                        # but the records persist until another is pushed at the same level, 
+                        # or a parent is pulled. Ideal for milestones, line breaks, etc.
+                        ohco_type = self.pushed_tags[old_element.tag]
+                        self.v.pull(ohco_type,offset + len(content))
+                        del self.pushed_tags[old_element.tag]
+                    # clean up any metadata extractors instantiated for this element.
+                    current_depth = len(self.stack)
+                    for ex,depth in self.extractors:
+#                        print "%s vs %s" % (ex.context,old_element)
+#                        if ex.context not in self.stack:
+#                            print "removing"
+                         if depth > current_depth:
+                             self.extractors.remove((ex,depth))
+#                    for ex,depth in self.extractors:
+#                        print "%s:%s@%d" % (ex,ex.context,depth)
 
-                    # prune the tree. saves memory. be careful.
+                    # prune the tree.
                     old_element.clear() # empty old element.
                     if self.stack: # if the old element had a parent:
-                        del self.stack[-1][-1] # delete reference in parent
-                        
+                        del self.stack[-1][-1] # delete reference in parent                        
                     else: # otherwise, you've cleared out the whole tree
-                        pass # and should do something clever.
-                        # might want to create a new root, and maybe even increment docid?
+                        self.root = None
+                    # Now that all references to the element are gone, Python will GC it at leisure.
 
         self.file_position = offset + len(content)
 
@@ -182,7 +201,6 @@ class Parser:
         
         Returns a max_id vector suitable for building a compression bit-spec in a loader."""
         # pull all extant objects.
-        # I think you just need to pull doc and page, now that bytes and parents are set automagically.
         self.v.pull("doc",self.file_position)
         return self.v.v_max
 
@@ -194,6 +212,7 @@ if __name__ == "__main__":
     for docid, filename in enumerate(files,1):
         f = open(filename)
         print >> sys.stderr, "%d: parsing %s" % (docid,filename)
-        p = Parser({"filename":filename},docid, output=sys.stdout)
+        p = Parser({"filename":filename},docid, non_nesting_tags = ["div1","div2","div3","p"],self_closing_tags = ["br","lb","ab"],output=sys.stdout)
+#        p = Parser({"filename":filename},docid, non_nesting_tags = [],output=sys.stdout)
         p.parse(f)
         #print >> sys.stderr, "%s\n%d total tokens in %d unique types." % (spec,sum(counts.values()),len(counts.keys()))

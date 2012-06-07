@@ -74,6 +74,7 @@ class Parser:
         self.self_closing_tags = self_closing_tags
         self.pseudo_empty_tags = pseudo_empty_tags
         self.pushed_tags = {}
+        self.depth_pushed = {}
         
     def parse(self,input):
         """Top level function for reading a file and printing out the output."""
@@ -117,7 +118,9 @@ class Parser:
             for xpath,ohco_type in self.map.items():
                 if new_element in self.root.findall(xpath):
                     self.v.push(ohco_type,name,offset)
+                    print >> sys.stderr, "pushing %s for %s" % (ohco_type,name)
                     self.pushed_tags[name] = ohco_type
+                    self.depth_pushed[len(self.stack)] = ohco_type
                     if ohco_type == 'doc':
                         for key,value in self.known_metadata.items():
                             self.v[ohco_type][key] = value                        
@@ -165,15 +168,19 @@ class Parser:
 
             if self.stack: # All elements get pulled of the stack..
                 if self.stack[-1].tag == name:
-                    old_element = self.stack.pop()
+
                     # This can go badly out of whack if you're just missing one end tag 
-                    if old_element.tag in self.pushed_tags and name not in self.pseudo_empty_tags:
-                        # pseudo_empty_tags are popped off the XML stack, 
-                        # but the records persist until another is pushed at the same level, 
-                        # or a parent is pulled. Ideal for milestones, line breaks, etc.
-                        ohco_type = self.pushed_tags[old_element.tag]
-                        self.v.pull(ohco_type,offset + len(content))
-                        del self.pushed_tags[old_element.tag]
+                    if name not in self.pseudo_empty_tags:
+                        if len(self.stack) in self.depth_pushed:                        
+                            # pseudo_empty_tags are popped off the XML stack, 
+                            # but the records persist until another is pushed at the same level, 
+                            # or a parent is pulled. Ideal for milestones, line breaks, etc.
+                            ohco_type = self.depth_pushed[len(self.stack)]
+                            self.v.pull(ohco_type,offset + len(content))
+#                            del self.pushed_tags[old_element.tag]
+                            del self.depth_pushed[len(self.stack)]
+                    old_element = self.stack.pop()
+                    
                     # clean up any metadata extractors instantiated for this element.
                     current_depth = len(self.stack)
                     for ex,depth in self.extractors:

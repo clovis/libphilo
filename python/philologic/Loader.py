@@ -252,10 +252,12 @@ class Loader(object):
     def make_sql_table(self, file_in, table, obj_type='doc'):
         field_list = ['philo_type', 'philo_name', 'philo_id', 'philo_seq']
         depth = object_types.index(obj_type) + 1 ## this is for philo_id slices
+        if table == 'pages':
+            depth = 9
         conn = self.dbh
         c = conn.cursor()
         
-        if table != 'toms':
+        if table == 'words_per_object':
             ## Retrieve column names from toms
             c.execute('select * from toms')
             extra_fields = [i[0] for i in c.description if i[0] not in field_list]
@@ -279,7 +281,11 @@ class Loader(object):
             fields = id.split(" ",8)
             if len(fields) == 9:
                 row = {}
-                if table != 'toms':
+                if table == "toms":
+                    philo_id = " ".join(fields[:7])
+                elif table == "pages":
+                    philo_id = " ".join(fields)
+		elif table == 'words_per_object':
                     philo_id = ' '.join(id.split()[:depth])
                     philo_id = philo_id + ' ' + ' '.join('0' for i in range(7 - depth))
                     ## Fetch missing fields from toms
@@ -287,8 +293,6 @@ class Loader(object):
                     c.execute(toms_query, (philo_id,))
                     results = [i for i in c.fetchone()]
                     row.update(dict(zip(extra_fields, results)))
-                else:
-                    philo_id = " ".join(fields[:7])
                 row["philo_type"] = philo_type
                 row["philo_name"] = philo_name
                 row["philo_id"] = philo_id

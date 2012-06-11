@@ -257,7 +257,7 @@ class Loader(object):
         conn = self.dbh
         c = conn.cursor()
         
-        if table == 'words_per_object':
+        if table.endswith('word_counts'):
             ## Retrieve column names from toms
             c.execute('select * from toms')
             extra_fields = [i[0] for i in c.description if i[0] not in field_list]
@@ -285,7 +285,7 @@ class Loader(object):
                     philo_id = " ".join(fields[:7])
                 elif table == "pages":
                     philo_id = " ".join(fields)
-		elif table == 'words_per_object':
+                elif table.endswith('word_counts'):
                     philo_id = ' '.join(id.split()[:depth])
                     philo_id = philo_id + ' ' + ' '.join('0' for i in range(7 - depth))
                     ## Fetch missing fields from toms

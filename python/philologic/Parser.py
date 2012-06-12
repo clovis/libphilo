@@ -118,7 +118,7 @@ class Parser:
             for xpath,ohco_type in self.map.items():
                 if new_element in self.root.findall(xpath):
                     self.v.push(ohco_type,name,offset)
-                    print >> sys.stderr, "pushing %s for %s" % (ohco_type,name)
+                    #print >> sys.stderr, "pushing %s for %s" % (ohco_type,name)
                     self.pushed_tags[name] = ohco_type
                     self.depth_pushed[len(self.stack)] = ohco_type
                     if ohco_type == 'doc':

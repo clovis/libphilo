@@ -1,7 +1,6 @@
 import shlax
 import shlaxtree
 import AbstractParser5
-import DirtyFormatter
 import DirtyParser
 import OHCOVector
 import TEIParser

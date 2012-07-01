@@ -259,9 +259,9 @@ class Loader(object):
         
         if table.endswith('word_counts'):
             ## Retrieve column names from toms
-            c.execute('select * from toms')
-            extra_fields = [i[0] for i in c.description if i[0] not in field_list]
-            field_list = field_list + extra_fields + ['bytes', '%s_token_count' % obj_type]
+            #c.execute('select * from toms')
+            #extra_fields = [i[0] for i in c.description if i[0] not in field_list]
+            field_list = field_list + ['bytes', '%s_token_count' % obj_type]
         
         ## Create table
         columns = ','.join(field_list)
@@ -289,10 +289,10 @@ class Loader(object):
                     philo_id = ' '.join(id.split()[:depth])
                     philo_id = philo_id + ' ' + ' '.join('0' for i in range(7 - depth))
                     ## Fetch missing fields from toms
-                    toms_query = 'select %s from toms where philo_id=?' % ','.join(extra_fields)
-                    c.execute(toms_query, (philo_id,))
-                    results = [i for i in c.fetchone()]
-                    row.update(dict(zip(extra_fields, results)))
+                    #toms_query = 'select %s from toms where philo_id=?' % ','.join(extra_fields)
+                    #c.execute(toms_query, (philo_id,))
+                    #results = [i for i in c.fetchone()]
+                    #row.update(dict(zip(extra_fields, results)))
                 row["philo_type"] = philo_type
                 row["philo_name"] = philo_name
                 row["philo_id"] = philo_id

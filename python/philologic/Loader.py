@@ -108,7 +108,7 @@ class Loader(object):
                     i = codecs.open(text["newpath"],"r",)
                     o = codecs.open(text["raw"], "w",) # only print out raw utf-8, so we don't need a codec layer now.
                     print "%s: parsing %d : %s" % (time.ctime(),text["id"],text["name"])
-                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,token_regex=default_token_regex,non_nesting_tags=non_nesting_tags,self_closing_tags=self_closing_tags,pseudo_empty_tags=pseudo_empty_tags,output=o)
+                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,token_regex=token_regex,non_nesting_tags=non_nesting_tags,self_closing_tags=self_closing_tags,pseudo_empty_tags=pseudo_empty_tags,output=o)
                     try:
                         r = parser.parse(i)  
                     except RuntimeError:

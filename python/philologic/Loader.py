@@ -108,7 +108,7 @@ class Loader(object):
                     i = codecs.open(text["newpath"],"r",)
                     o = codecs.open(text["raw"], "w",) # only print out raw utf-8, so we don't need a codec layer now.
                     print "%s: parsing %d : %s" % (time.ctime(),text["id"],text["name"])
-                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,token_regex=default_token_regex,non_nesting_tags=non_nesting_tags,self_closing_tags=self_closing_tags,pseudo_empty_tags=pseudo_empty_tags,output=o)
+                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,token_regex=token_regex,non_nesting_tags=non_nesting_tags,self_closing_tags=self_closing_tags,pseudo_empty_tags=pseudo_empty_tags,output=o)
                     try:
                         r = parser.parse(i)  
                     except RuntimeError:
@@ -258,10 +258,7 @@ class Loader(object):
         c = conn.cursor()
         
         if table.endswith('word_counts'):
-            ## Retrieve column names from toms
-            c.execute('select * from toms')
-            extra_fields = [i[0] for i in c.description if i[0] not in field_list]
-            field_list = field_list + extra_fields + ['bytes', '%s_token_count' % obj_type]
+            field_list = field_list + ['bytes', '%s_token_count' % obj_type]
         
         ## Create table
         columns = ','.join(field_list)
@@ -288,11 +285,6 @@ class Loader(object):
                 elif table.endswith('word_counts'):
                     philo_id = ' '.join(id.split()[:depth])
                     philo_id = philo_id + ' ' + ' '.join('0' for i in range(7 - depth))
-                    ## Fetch missing fields from toms
-                    toms_query = 'select %s from toms where philo_id=?' % ','.join(extra_fields)
-                    c.execute(toms_query, (philo_id,))
-                    results = [i for i in c.fetchone()]
-                    row.update(dict(zip(extra_fields, results)))
                 row["philo_type"] = philo_type
                 row["philo_name"] = philo_name
                 row["philo_id"] = philo_id

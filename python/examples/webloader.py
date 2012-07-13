@@ -85,7 +85,7 @@ Metadata_XPaths = { # metadata per type.  '.' is in this case the base element f
 
 non_nesting_tags = ["div1","div2","div3","p","P"]
 self_closing_tags = ["pb","p","Xdiv","note","span","br","P","BR",]
-pseudo_empty_tags = []
+pseudo_empty_tags = ["milestone"]
 
 word_regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)"
 punct_regex = r"([\.;:?!])"

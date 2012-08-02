@@ -143,7 +143,7 @@ Z32 h2m_cmp_sentence ( Z32 *a, Z32 *b, hitdef *hit_def, Z32 level )
   if (d < 0){
   	return -1;
   }
-  if (d <= h[level].distance) {
+  if (d > h[level].distance) {
   	return 1;
   }
   return 0;  
@@ -182,7 +182,7 @@ Z8 *get_method_info_sentence ()
 Z32 build_search_level_sentence ( hitcmp *h, Z8 *arg, Z32 n_level )
 {
   Z32 context;
-  Z32 distance = 1; 
+  Z32 distance = 0; 
   
   if ( arg )
     {

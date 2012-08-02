@@ -11,7 +11,7 @@ PH_LDSEARCHFLAGS =
 all: 	search4 db/pack4
 
 db/pack4: db/pack.c db/pack.h db/db.c db/db.h
-	(cd db; make pack4)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o db/pack4 db/pack.c db/db.c -lgdbm
 
 search4: search4.c search.o retreive.o gmap.o word.o blockmap.o level.o out.o plugin/libindex.a db/db.o db/bitsvector.o db/unpack.o
 	$(PH_BUILDENV) $(CC) $(CFLAGS) $(CPPFLAGS) $(PH_CFLAGS) $(LDFLAGS) $(PH_LDSEARCHFLAGS) search4.c search.o retreive.o gmap.o word.o blockmap.o level.o out.o db/db.o db/bitsvector.o db/unpack.o plugin/libindex.a -lgdbm -o search4
@@ -20,13 +20,10 @@ libphilo.dylib: search.o word.o retreive.o level.o gmap.o blockmap.o log.h out.o
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -dynamiclib -std=gnu99 search.o word.o retreive.o level.o gmap.o blockmap.o out.o plugin/libindex.a db/db.o db/bitsvector.o db/unpack.o -lgdbm -o libphilo.dylib
 
 db/db.o:  db/db.c db/db.h db/bitsvector.c db/bitsvector.h
-	(cd db; make db.o)
 
 db/bitsvector.o: db/bitsvector.c db/bitsvector.h
-	(cd db; make bitsvector.o)
 
 db/unpack.o: db/unpack.c db/unpack.c db/bitsvector.c db/bitsvector.h db/db.c db/db.h
-	(cd db; make unpack.o)
 
 plugin/libindex.a:	plugin
 	(cd plugin; make libindex.a)
@@ -48,7 +45,8 @@ log.o:		log.h log.c
 install:	all
 	/usr/bin/install -c search4 ${exec_prefix}/bin
 	/usr/bin/install -c db/pack4 ${exec_prefix}/bin
+	(cd python; python setup.py install)
 clean: 
-	rm -f *.o *~ search4 pack4
+	rm -f *.o *~ search4 db/pack4
 	(cd plugin; make clean)
 	(cd db; make clean)

@@ -1,6 +1,6 @@
 # $Id: Makefile.in,v 2.11 2004/05/28 19:22:08 o Exp $
 CC= gcc
-PH_CFLAGS = -I..
+PH_CFLAGS = -O3 -I..
 CFLAGS= $(PH_CFLAGS)
 
 all: libindex.a 

@@ -5,8 +5,7 @@ import sys
 
 et = shlaxtree.et  # MAKE SURE you use ElementTree version 1.3.
                    # This is standard in Python 2.7, but an add on in 2.6,
-                   # so you have to set the package right at make/configure/install time.
-                   # if you did it wrong, you can fix it in shlaxtree or reinstall.
+
 
 # A list of valid types in the Philo object hierarchy, used to construct an OHCOVector.Stack
 # The index is constructed by "push" and "pull" operations to various types, and sending metadata into them.

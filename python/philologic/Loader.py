@@ -13,8 +13,6 @@ from ast import literal_eval as eval
 from philologic import OHCOVector, Parser
 from philologic.LoadFilters import *
 from philologic.PostFilters import *
-#from ExtraFilters import *
-
 
 ## Disable output buffering
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
@@ -28,7 +26,15 @@ index_cutoff = 10 # index frequency cutoff.  Don't. alter.
 
 ## If you are going to change the order of these filters (which is not recommended)
 ## please consult the documentation for each of these filters in LoadFilters.py
-default_filters = [make_word_counts, generate_words_sorted, sorted_toms, prev_next_obj, generate_pages, make_max_id]
+default_filters = [make_word_counts, 
+                   generate_words_sorted,
+                   make_token_counts,
+                   sorted_toms, 
+                   prev_next_obj, 
+                   word_frequencies_per_obj,
+                   generate_pages, 
+                   make_max_id]
+
 default_post_filters = [index_metadata_fields]
 
 ## While these tables are loaded by default, you can override that default, although be aware
@@ -37,64 +43,115 @@ default_post_filters = [index_metadata_fields]
 default_tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'toms.db', 'pages'),
                   ('doc_word_counts_sorted', 'toms.db', 'doc_word_counts')]
 
-
 default_token_regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)|([\.;:?!])"
-
 
 class Loader(object):
 
-    def __init__(self,workers=4,verbose=True, filters=default_filters, tables=default_tables, extra_tables=False, clean=True, debug=False):
-        self.max_workers = workers 
+    def __init__(self,destination,types,xpaths, metadata_xpaths,filters=default_filters,token_regex=default_token_regex,non_nesting_tags=[],self_closing_tags=[],pseudo_empty_tags=[],debug=False):
         self.omax = [1,1,1,1,1,1,1,1,1]
-        self.totalcounts = {}
-        self.verbose = verbose
-        self.filters = filters
-        self.tables = tables
-        self.extra_tables = extra_tables
-        self.clean = clean
-        self.sort_by_word = sort_by_word
-        self.sort_by_id = sort_by_id
         self.debug = debug
+        self.parse_pool = None 
+        self.parser_factory = Parser.Parser
+
+        self.types = types
+
+        self.xpaths = xpaths
+        self.metadata_xpaths = metadata_xpaths
+
+        self.default_filters = filters
+
+        self.token_regex = token_regex
+
+        self.non_nesting_tags = non_nesting_tags
+        self.self_closing_tags = self_closing_tags
+        self.pseudo_empty_tags = pseudo_empty_tags
+        if debug == True:
+            self.clean = False
+            self.verbose = True
+        else:
+            self.clean = True
+            self.verbose = False
+
+        try:
+            os.stat(destination + "/WORK/")
+            self.destination = destination
+        except OSError:
+            self.setup_dir(destination)
         
-    def setup_dir(self,path,files):
-        self.destination = path
-        self.files = files
-        os.mkdir(self.destination)
-        self.workdir = self.destination + "/WORK/"
-        self.textdir = self.destination + "/TEXT/"
+        self.metadata_fields = []
+        self.metadata_hierarchy = []
+        self.metadata_types = {}
+        for t in self.types:
+            metadata_hierarchy.append([])
+            for extractor,path,param in self.metadata_xpaths[t]:
+                if param not in metadata_fields:
+                    metadata_fields.append(param)
+                    metadata_hierarchy[-1].append(param)
+                if param not in metadata_types:
+                    metadata_types[param] = t
+
+    def setup_dir(self,path):
+        os.mkdir(path)
+        self.workdir = path + "/WORK/"
+        self.textdir = path + "/TEXT/"
         os.mkdir(self.workdir)
         os.mkdir(self.textdir)
-
-        self.fileinfo =    [{"orig":os.path.abspath(x),
-                             "name":os.path.basename(x),
-                             "id":n + 1,
-                             "newpath":self.textdir + os.path.basename(x),
-                             "raw":self.workdir + os.path.basename(x) + ".raw",
-                             "words":self.workdir + os.path.basename(x) + ".words.sorted",
-                             "toms":self.workdir + os.path.basename(x) + ".toms",
-                             "sortedtoms":self.workdir + os.path.basename(x) + ".toms.sorted",
-                             "pages":self.workdir + os.path.basename(x) + ".pages",
-                             "results":self.workdir + os.path.basename(x) + ".results"} for n,x in enumerate(self.files)]
-
-        for t in self.fileinfo:
-            os.system("cp %s %s" % (t["orig"],t["newpath"]))
+        self.destination = path
         
-        os.chdir(self.workdir) #questionable
+    def add_files(self,files):
+        for f in files:
+            os.system("cp %s %s" % (f,self.textdir+f))
+            
+    def status(self):
+        pass
+    
+    def list_files(self):
+        return os.listdir(self.textdir)
         
-    def parse_files(self,xpaths=None,metadata_xpaths=None,token_regex=default_token_regex,non_nesting_tags=[],self_closing_tags=[],pseudo_empty_tags=[]):
+    def parse_files(self,max_workers,data_dicts = None):
         print "\n### Parsing files ###"
-        filequeue = self.fileinfo[:]
-        print "%s: parsing %d files." % (time.ctime(),len(filequeue))
+        os.chdir(self.workdir) #questionable
+
+        if not data_dicts:
+            data_dicts = [{"filename":self.textdir + fn} for fn in self.list_files]
+
+            self.filequeue =   [{"orig":os.path.abspath(x),
+                                 "name":os.path.basename(x),
+                                 "id":n + 1,
+                                 "newpath":self.textdir + os.path.basename(x),
+                                 "raw":self.workdir + os.path.basename(x) + ".raw",
+                                 "words":self.workdir + os.path.basename(x) + ".words.sorted",
+                                 "toms":self.workdir + os.path.basename(x) + ".toms",
+                                 "sortedtoms":self.workdir + os.path.basename(x) + ".toms.sorted",
+                                 "pages":self.workdir + os.path.basename(x) + ".pages",
+                                 "results":self.workdir + os.path.basename(x) + ".results"} for n,x in enumerate(self.files)]
+
+        else:
+             self.filequeue =   [{"orig":os.path.abspath(d["filename"]),
+                                 "name":os.path.basename(d["filename"]),
+                                 "id":n + 1,
+                                 "newpath":self.textdir + os.path.basename(d["filename"]),
+                                 "raw":self.workdir + os.path.basename(d["filename"]) + ".raw",
+                                 "words":self.workdir + os.path.basename(d["filename"]) + ".words.sorted",
+                                 "toms":self.workdir + os.path.basename(d["filename"]) + ".toms",
+                                 "sortedtoms":self.workdir + os.path.basename(d["filename"]) + ".toms.sorted",
+                                 "pages":self.workdir + os.path.basename(d["filename"]) + ".pages",
+                                 "results":self.workdir + os.path.basename(d["filename"]) + ".results"} for n,d in enumerate(data_dicts)]
+                
+
+        
+        print "%s: parsing %d files." % (time.ctime(),len(filelist))
         procs = {}
         workers = 0
         done = 0
-        total = len(filequeue)
+        total = len(filelist)
         
         while done < total:
-            while filequeue and workers < self.max_workers:
+            while filequeue and workers < max_workers:
     
                 # we want to have up to max_workers processes going at once.
                 text = filequeue.pop(0) # parent and child will both know the relevant filenames
+                metadata = data_dicts.pop(0)                
                 pid = os.fork() # fork returns 0 to the child, the id of the child to the parent.  
                 # so pid is true in parent, false in child.
     
@@ -108,9 +165,26 @@ class Loader(object):
                     i = codecs.open(text["newpath"],"r",)
                     o = codecs.open(text["raw"], "w",) # only print out raw utf-8, so we don't need a codec layer now.
                     print "%s: parsing %d : %s" % (time.ctime(),text["id"],text["name"])
-                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,token_regex=token_regex,non_nesting_tags=non_nesting_tags,self_closing_tags=self_closing_tags,pseudo_empty_tags=pseudo_empty_tags,output=o)
+                    
+                    if "xpaths" not in metadata:
+                        metadata["xpaths"] = self.xpaths
+                    if "types" not in metadata:
+                        metadata["types"] = self.types
+                    if "metadata_xpaths" not in metadata:
+                        metadata["metadata_xpaths"] = self.metadata_xpaths
+                    if "token_regex" not in metadata:
+                        metadata["token_regex"] = self.token_regex
+                    if "non_nesting_tags" not in metadata:
+                        metadata["non_nesting_tags"] = self.non_nesting_tags
+                    if "self_closing_tags" not in metadata:
+                        metadata["self_closing_tags"] = self.self_closing_tags
+                    if "pseudo_empty_tags" not in metadata:
+                        metadata["pseudo_empty_tags"] = self.pseudo_empty_tags
+                       
+                    parser = self.parser_factory(o,text["id"],**metadata)
+#                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,token_regex=token_regex,non_nesting_tags=non_nesting_tags,self_closing_tags=self_closing_tags,pseudo_empty_tags=pseudo_empty_tags,output=o)
                     try:
-                        r = parser.parse(i)  
+                        r = parser.parse(i)
                     except RuntimeError:
                         print >> sys.stderr, "parse failure: XML stack explosion : %s" % [el.tag for el in parser.stack]
                         exit(1)
@@ -194,7 +268,7 @@ class Loader(object):
         # now scan over the frequency table to figure out how wide (in bits) the frequency fields are, and how large the block file will be.
         for line in open(self.workdir + "/all_frequencies"):    
             f, word = line.rsplit(" ",1) # uniq -c pads output on the left side, so we split on the right.
-            f = int(f)    
+            f = int(f)
             if f > freq2:
                 freq2 = f
             if f < index_cutoff:
@@ -232,10 +306,10 @@ class Loader(object):
         if self.clean:
             os.system('rm all_words_sorted')
 
-    def make_tables(self):
+    def make_tables(self,tables=default_tables):
         print '\n### SQL Load ###'
         print "Loading in the following tables:"
-        for file_in, db, table in self.tables:
+        for file_in, db, table in tables:
             print "%s table in %s database file..." % (table, db),
             file_in = self.workdir + "/%s" % file_in
             self.dbh = sqlite3.connect("../%s" % db)
@@ -245,9 +319,6 @@ class Loader(object):
             print 'done.'
             if self.clean:
                 os.system('rm %s' % file_in)
-        if self.extra_tables:
-            for fn in self.extra_tables:
-                fn(self)
                 
     def make_sql_table(self, file_in, table, obj_type='doc'):
         field_list = ['philo_type', 'philo_name', 'philo_id', 'philo_seq']
@@ -306,22 +377,10 @@ class Loader(object):
                 sequence += 1       
         conn.commit()
 
-    def finish(self, Philo_Types, Metadata_XPaths, Post_Filters=default_post_filters, **extra_locals):
+    def finish(self, Post_Filters=default_post_filters, **extra_locals):
         print "\n### Finishing up ###"
         os.mkdir(self.destination + "/src/")
         os.system("mv dbspecs4.h ../src/dbspecs4.h")
-        
-        metadata_fields = []
-        metadata_hierarchy = []
-        metadata_types = {}
-        for t in Philo_Types:
-            metadata_hierarchy.append([])
-            for extractor,path,param in Metadata_XPaths[t]:
-                if param not in metadata_fields:
-                    metadata_fields.append(param)
-                    metadata_hierarchy[-1].append(param)
-                if param not in metadata_types:
-                    metadata_types[param] = t
         
         ## Create a new all_frequencies file in the frequencies folder
         frequencies = self.destination + '/frequencies'
@@ -351,9 +410,9 @@ class Loader(object):
         
         db_locals = open(self.destination + "/db.locals.py","w") 
 
-        print >> db_locals, "metadata_fields = %s" % metadata_fields
-        print >> db_locals, "metadata_hierarchy = %s" % metadata_hierarchy
-        print >> db_locals, "metadata_types = %s" % metadata_types
+        print >> db_locals, "metadata_fields = %s" % self.metadata_fields
+        print >> db_locals, "metadata_hierarchy = %s" % self.metadata_hierarchy
+        print >> db_locals, "metadata_types = %s" % self.metadata_types
         print >> db_locals, "db_path = '%s'" % self.destination
         print >> db_locals, "debug = %s" % self.debug
         for k,v in extra_locals.items():
@@ -362,30 +421,21 @@ class Loader(object):
         print >> sys.stderr, "wrote metadata info to %s." % (self.destination + "/db.locals.py")
         
         if Post_Filters:
-            self.metadata_fields = metadata_fields
             print >> sys.stderr, 'Running the following post-processing filters:'
             for f in Post_Filters:
                 print >> sys.stderr, f.__name__ + '...',
                 f(self)
-                print >> sys.stderr, 'done.'
-            
-        
-        
-        
-
+                print >> sys.stderr, 'done.'            
+                
 # a quick utility function
-def load(path,files,xpaths=None,metadata_xpaths=None,workers=4):
-    l = Loader(workers)    
-    l.setup_dir(path,files)
-    l.parse_files(xpaths,metadata_xpaths)
+def load(path,files,filters=default_filters,xpaths=None,metadata_xpaths=None,workers=4):
+    l = Loader(path)    
+    l.add_files(files)
+    l.parse_files(workers,filters,xpaths,metadata_xpaths)
     l.merge_objects()
     l.analyze()
     l.make_tables()
     l.finish()
-
-
-
-
         
 if __name__ == "__main__":
     os.environ["LC_ALL"] = "C" # Exceedingly important to get uniform sort order.

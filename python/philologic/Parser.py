@@ -55,7 +55,7 @@ TEI_MetadataXPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStm
 Default_Token_Regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)|([\.;:?!])"
 
 class Parser:
-    def __init__(self,known_metadata,docid,format=ARTFLVector,parallel=ARTFLParallels,xpaths=None,metadata_xpaths = None,token_regex=Default_Token_Regex,non_nesting_tags = [],self_closing_tags = [],pseudo_empty_tags = [],output=None):
+    def __init__(self,output,docid,types=ARTFLVector,parallel=ARTFLParallels,xpaths=None,metadata_xpaths = None,token_regex=Default_Token_Regex,non_nesting_tags = [],self_closing_tags = [],pseudo_empty_tags = [],**known_metadata):
         self.known_metadata = known_metadata
         self.docid = docid
         self.i = shlaxtree.ShlaxIngestor(target=self)
@@ -64,7 +64,7 @@ class Parser:
         self.stack = []
         self.map = xpaths or TEI_XPaths
         self.metadata_paths = metadata_xpaths or TEI_MetadataXPaths
-        self.v = OHCOVector.CompoundStack(format,parallel,docid,output)
+        self.v = OHCOVector.CompoundStack(types,parallel,docid,output)
         # OHCOVector should take an output file handle.
         self.extractors = []
         self.file_position = 0

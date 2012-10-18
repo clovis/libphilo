@@ -13,16 +13,6 @@ class HitWrapper(object):
         self.db = db
         self.hit = hit
         print >> sys.stderr, self.hit
-        self.bytes = []
-        self.wordids = []
-        word_data = list(hit)[7:]
-        while word_data:
-            try:
-                self.wordids.append(word_data.pop(0))
-                self.bytes.append(word_data.pop(0))
-            except IndexError:
-                pass
-        self.bytes.sort()
         self.philo_id = hit
         self.encoding = encoding
         if obj_type:
@@ -34,6 +24,22 @@ class HitWrapper(object):
                 length = len(hit)
             if length >= 7: length = 7
             self.type = [k for k in obj_dict if obj_dict[k] == length][0]
+
+        self.bytes = []
+        self.wordids = []
+        if self.type == "word" and len(list(hit)) == 7:
+            self.wordids.append(list(hit))
+            self.bytes = [self.byte_start]
+        else:
+            word_data = list(hit)[7:]
+            while word_data:
+                try:
+                    self.wordids.append(word_data.pop(0))
+                    self.bytes.append(word_data.pop(0))
+                except IndexError:
+                    pass
+
+        self.bytes.sort()
 
     def __getitem__(self, key):
         if key in obj_dict:

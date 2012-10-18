@@ -72,23 +72,28 @@ class Loader(object):
             self.clean = True
             self.verbose = False
 
+        self.sort_by_word = sort_by_word
+        self.sort_by_id = sort_by_id
+
         try:
             os.stat(destination + "/WORK/")
             self.destination = destination
+            self.is_new = False
         except OSError:
             self.setup_dir(destination)
+            self.is_new = True
         
         self.metadata_fields = []
         self.metadata_hierarchy = []
         self.metadata_types = {}
         for t in self.types:
-            metadata_hierarchy.append([])
+            self.metadata_hierarchy.append([])
             for extractor,path,param in self.metadata_xpaths[t]:
-                if param not in metadata_fields:
-                    metadata_fields.append(param)
-                    metadata_hierarchy[-1].append(param)
-                if param not in metadata_types:
-                    metadata_types[param] = t
+                if param not in self.metadata_fields:
+                    self.metadata_fields.append(param)
+                    self.metadata_hierarchy[-1].append(param)
+                if param not in self.metadata_types:
+                    self.metadata_types[param] = t
 
     def setup_dir(self,path):
         os.mkdir(path)
@@ -113,7 +118,7 @@ class Loader(object):
         os.chdir(self.workdir) #questionable
 
         if not data_dicts:
-            data_dicts = [{"filename":self.textdir + fn} for fn in self.list_files]
+            data_dicts = [{"filename":self.textdir + fn} for fn in self.list_files()]
 
             self.filequeue =   [{"orig":os.path.abspath(x),
                                  "name":os.path.basename(x),
@@ -124,7 +129,7 @@ class Loader(object):
                                  "toms":self.workdir + os.path.basename(x) + ".toms",
                                  "sortedtoms":self.workdir + os.path.basename(x) + ".toms.sorted",
                                  "pages":self.workdir + os.path.basename(x) + ".pages",
-                                 "results":self.workdir + os.path.basename(x) + ".results"} for n,x in enumerate(self.files)]
+                                 "results":self.workdir + os.path.basename(x) + ".results"} for n,x in enumerate(self.list_files())]
 
         else:
              self.filequeue =   [{"orig":os.path.abspath(d["filename"]),
@@ -140,18 +145,20 @@ class Loader(object):
                 
 
         
-        print "%s: parsing %d files." % (time.ctime(),len(filelist))
+        print "%s: parsing %d files." % (time.ctime(),len(self.filequeue))
         procs = {}
         workers = 0
         done = 0
-        total = len(filelist)
+        total = len(self.filequeue)
         
         while done < total:
-            while filequeue and workers < max_workers:
+            while self.filequeue and workers < max_workers:
     
                 # we want to have up to max_workers processes going at once.
-                text = filequeue.pop(0) # parent and child will both know the relevant filenames
+                text = self.filequeue.pop(0) # parent and child will both know the relevant filenames
                 metadata = data_dicts.pop(0)                
+                print >> sys.stderr, text
+                print >> sys.stderr, metadata
                 pid = os.fork() # fork returns 0 to the child, the id of the child to the parent.  
                 # so pid is true in parent, false in child.
     
@@ -167,9 +174,7 @@ class Loader(object):
                     print "%s: parsing %d : %s" % (time.ctime(),text["id"],text["name"])
                     
                     if "xpaths" not in metadata:
-                        metadata["xpaths"] = self.xpaths
-                    if "types" not in metadata:
-                        metadata["types"] = self.types
+                        metadata["xpaths"] = self.xpaths                        
                     if "metadata_xpaths" not in metadata:
                         metadata["metadata_xpaths"] = self.metadata_xpaths
                     if "token_regex" not in metadata:
@@ -181,6 +186,10 @@ class Loader(object):
                     if "pseudo_empty_tags" not in metadata:
                         metadata["pseudo_empty_tags"] = self.pseudo_empty_tags
                        
+                    filters = self.default_filters
+                    if "filters" in metadata:
+                        filters = metadata["filters"]
+                        del metadata["filters"]
                     parser = self.parser_factory(o,text["id"],**metadata)
 #                    parser = Parser.Parser({"filename":text["name"]},text["id"],xpaths=xpaths,metadata_xpaths=metadata_xpaths,token_regex=token_regex,non_nesting_tags=non_nesting_tags,self_closing_tags=self_closing_tags,pseudo_empty_tags=pseudo_empty_tags,output=o)
                     try:
@@ -188,13 +197,10 @@ class Loader(object):
                     except RuntimeError:
                         print >> sys.stderr, "parse failure: XML stack explosion : %s" % [el.tag for el in parser.stack]
                         exit(1)
-                    except:
-                        print >> sys.stderr, "parse failure: unknown"
-                        exit(2)
                     i.close()
                     o.close()
 
-                    for f in self.filters:
+                    for f in filters:
                         f(self, text)
                     
                     if self.clean:
@@ -395,7 +401,7 @@ class Loader(object):
         ## To be replaced by sqlite tables later on
         conn = sqlite3.connect(self.destination + '/toms.db')
         c = conn.cursor()
-        for field in metadata_fields:
+        for field in self.metadata_fields:
             query = 'select %s, count(*) from toms group by %s order by count(%s) desc' % (field, field, field)
             try:
                 c.execute(query)

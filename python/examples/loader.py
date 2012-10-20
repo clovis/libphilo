@@ -2,54 +2,85 @@ import sys
 import os
 import errno
 import philologic
+from optparse import OptionParser
+from glob import glob
 from philologic.Loader import Loader
 from philologic.LoadFilters import *
-#from ExtraFilters import *
 from philologic.Parser import Parser
 from philologic.ParserHelpers import *
+
+
+#########################
+## Command-line parsing #
+#########################
+usage = "usage: %prog [options] database_name files"
+parser = OptionParser(usage=usage)
+parser.add_option("-q", "--quiet", action="store_false", dest="verbose", help="suppress all output")
+parser.add_option("-c", "--cores", type="int", default="2", dest="workers", help="define the number of cores for parsing")
+parser.add_option("-t", "--templates", default=False, dest="template_dir", help="define the path for the templates you want to use")
+
 
 ##########################
 ## System Configuration **
 ##########################
 
 # Set the filesytem path to the root web directory for your PhiloLogic install.
-# database_root = ""
-database_root = ""
+database_root = None
 # /var/www/philologic/ is conventional for linux,
 # /Library/WebServer/Documents/philologic for Mac OS.
 # Please follow the instructions in INSTALLING before use.
 
 # Set the URL path to the same root directory for your philologic install.
-# url_root = ""
-url_root = "" 
+url_root = None 
 # http://localhost/philologic is appropriate if you don't have a DNS hostname.
 
 if database_root is None or url_root is None:
     print >> sys.stderr, "Please configure the loader script before use.  See INSTALLING in your PhiloLogic distribution."
     exit()
 
-install_dir = database_root + "_system_dir/_install_dir/"
-# The load process will fail if you haven't set up the install_dir at the correct location.
+template_dir = database_root + "_system_dir/_install_dir/"
+# The load process will fail if you haven't set up the template_dir at the correct location.
 
 
 ###########################
 ## Configuration options ##
 ###########################
 
-# Define the name of your database: given on the command line by default
-dbname = sys.argv[1]
+## Parse command-line arguments
+(options, args) = parser.parse_args(sys.argv[1:])
+try:
+    dbname = args[0]
+    args.pop(0)
+    if args[-1].endswith('/') or os.path.isdir(args[-1]):   
+        files = glob(args[-1] + '/*')
+    else:
+        files = args[:]
+except IndexError:
+    print >> sys.stderr, "\nError: you did not supply a database name or a path for your file(s) to be loaded\n"
+    parser.print_help()
+    sys.exit()
+workers = options.workers or 2
+template_dir = options.template_dir or template_dir
 
-# Define files to load: given on the command line by default
-files = sys.argv[2:]
-
-# Define how many cores you want to use
-workers = 6
-
-# Define filters as a list of functions to call, either those in Loader or outside
-filters = [make_word_counts, generate_words_sorted,make_token_counts,sorted_toms, prev_next_obj, word_frequencies_per_obj,generate_pages, make_max_id]
+# Define text objects for ranked relevancy: by default it's ['doc']. Disable by supplying empty list
+r_r_obj = ['doc'] 
 
 # Data tables to store.
-tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'toms.db', 'pages')]
+tables = ['toms', 'pages', 'ranked_relevance']
+
+# Define filters as a list of functions to call, either those in Loader or outside
+filters = [make_word_counts, generate_words_sorted,make_token_counts,sorted_toms,
+                prev_next_obj, word_frequencies_per_obj(*r_r_obj),generate_pages, make_max_id]  
+
+# Define text objects to generate plain text files for various machine learning tasks
+plain_text_obj = []
+if plain_text_obj:
+    filters.extend([store_in_plain_text])
+
+extra_locals = {}
+if r_r_obj:
+    extra_locals['ranked_relevance_objects'] = r_r_obj
+
 
 ###########################
 ## Set-up database load ###
@@ -120,8 +151,8 @@ except OSError:
         os.mkdir(template_destination)
     else:
         sys.exit()
-os.system("cp -r %s* %s" % (install_dir,template_destination))
-os.system("cp %s.htaccess %s" % (install_dir,template_destination))
+os.system("cp -r %s* %s" % (template_dir,template_destination))
+os.system("cp %s.htaccess %s" % (template_dir,template_destination))
 print "copied templates to %s" % template_destination
 
 
@@ -148,7 +179,7 @@ load_metadata = [{"filename":f} for f in sorted(filenames,reverse=True)]
 l.parse_files(workers,load_metadata)
 l.merge_objects()
 l.analyze()
-l.make_tables()
-l.finish(db_url=db_url)
+l.make_tables(tables, *r_r_obj)
+l.finish(**extra_locals)
 print >> sys.stderr, "done indexing."
 print >> sys.stderr, "db viewable at " + db_url + "/dispatcher.py/form"

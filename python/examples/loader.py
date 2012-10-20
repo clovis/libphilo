@@ -6,6 +6,7 @@ from optparse import OptionParser
 from glob import glob
 from philologic.Loader import Loader
 from philologic.LoadFilters import *
+#from ExtraFilters import *
 from philologic.Parser import Parser
 from philologic.ParserHelpers import *
 
@@ -15,9 +16,10 @@ from philologic.ParserHelpers import *
 #########################
 usage = "usage: %prog [options] database_name files"
 parser = OptionParser(usage=usage)
-parser.add_option("-q", "--quiet", action="store_false", dest="verbose", help="suppress all output")
+parser.add_option("-q", "--quiet", action="store_true", dest="quiet", help="suppress all output")
 parser.add_option("-c", "--cores", type="int", default="2", dest="workers", help="define the number of cores for parsing")
 parser.add_option("-t", "--templates", default=False, dest="template_dir", help="define the path for the templates you want to use")
+parser.add_option("-d", "--debug", default=False, dest="debug", help="add debugging to your load")
 
 
 ##########################
@@ -26,12 +28,12 @@ parser.add_option("-t", "--templates", default=False, dest="template_dir", help=
 
 # Set the filesytem path to the root web directory for your PhiloLogic install.
 database_root = None
-# /var/www/philologic/ is conventional for linux,
+# /var/www/html/philologic/ is conventional for linux,
 # /Library/WebServer/Documents/philologic for Mac OS.
 # Please follow the instructions in INSTALLING before use.
 
 # Set the URL path to the same root directory for your philologic install.
-url_root = None 
+url_root = None
 # http://localhost/philologic is appropriate if you don't have a DNS hostname.
 
 if database_root is None or url_root is None:
@@ -61,6 +63,8 @@ except IndexError:
     sys.exit()
 workers = options.workers or 2
 template_dir = options.template_dir or template_dir
+quiet = options.quiet or False
+debug = options.debug or False
 
 # Define text objects for ranked relevancy: by default it's ['doc']. Disable by supplying empty list
 r_r_obj = ['doc'] 
@@ -153,14 +157,18 @@ except OSError:
         sys.exit()
 os.system("cp -r %s* %s" % (template_dir,template_destination))
 os.system("cp %s.htaccess %s" % (template_dir,template_destination))
-print "copied templates to %s" % template_destination
+if not quiet:
+    print "copied templates to %s" % template_destination
 
 
 ####################
 ## Load the files ##
 ####################
 
-#l = Loader(workers, filters=filters, tables=tables, clean=True)
+print "\nIndexing begins... \n"
+if quiet:
+    verbose = sys.stdout
+    sys.stdout = open(os.devnull, 'w')
 l = Loader(data_destination,
            Philo_Types,
            XPaths,
@@ -170,10 +178,8 @@ l = Loader(data_destination,
            non_nesting_tags,
            self_closing_tags,
            pseudo_empty_tags,
-           debug=True)
+           debug=debug)
 l.add_files(files)
-#l.setup_dir(data_destination,files)
-#l.parse_files(XPaths,Metadata_XPaths,token_regex,non_nesting_tags,self_closing_tags,pseudo_empty_tags)
 filenames = l.list_files()
 load_metadata = [{"filename":f} for f in sorted(filenames,reverse=True)]
 l.parse_files(workers,load_metadata)
@@ -181,5 +187,7 @@ l.merge_objects()
 l.analyze()
 l.make_tables(tables, *r_r_obj)
 l.finish(**extra_locals)
-print >> sys.stderr, "done indexing."
-print >> sys.stderr, "db viewable at " + db_url + "/dispatcher.py/form"
+
+sys.stdout = verbose
+print "\nDone indexing."
+print "Your database is viewable at " + db_url + "\n"

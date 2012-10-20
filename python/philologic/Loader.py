@@ -46,7 +46,9 @@ default_token_regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)|([\.;:?!])"
 
 class Loader(object):
 
-    def __init__(self,destination,types,xpaths, metadata_xpaths,filters=default_filters,token_regex=default_token_regex,non_nesting_tags=[],self_closing_tags=[],pseudo_empty_tags=[],debug=False):
+    def __init__(self,destination,types,xpaths, metadata_xpaths,filters=default_filters,
+                 token_regex=default_token_regex,non_nesting_tags=[],self_closing_tags=[],
+                 pseudo_empty_tags=[],debug=False):
         self.omax = [1,1,1,1,1,1,1,1,1]
         self.debug = debug
         self.parse_pool = None 
@@ -156,8 +158,8 @@ class Loader(object):
                 # we want to have up to max_workers processes going at once.
                 text = self.filequeue.pop(0) # parent and child will both know the relevant filenames
                 metadata = data_dicts.pop(0)                
-                print >> sys.stderr, text
-                print >> sys.stderr, metadata
+                #print >> sys.stderr, text
+                #print >> sys.stderr, metadata
                 pid = os.fork() # fork returns 0 to the child, the id of the child to the parent.  
                 # so pid is true in parent, false in child.
     
@@ -225,37 +227,37 @@ class Loader(object):
         print "\n### Merge parser output ###"
         wordsargs = "sort -m " + sort_by_word + " " + sort_by_id + " " + "*.words.sorted"
 #        words_result = open(self.workdir + "all_words_sorted","w")
-        print >> sys.stderr, "%s: sorting words" % time.ctime()
+        print "%s: sorting words" % time.ctime()
 #        words_status = subprocess.call(wordargs,0,"sort",stdout=words_result,shell=True)
         words_status = os.system(wordsargs + " > " + self.workdir + "all_words_sorted")
-        print >> sys.stderr, "%s: word sort returned %d" % (time.ctime(),words_status)
+        print "%s: word sort returned %d" % (time.ctime(),words_status)
         if self.clean:
             os.system('rm *.words.sorted')
 
         tomsargs = "sort -m " + sort_by_id + " " + "*.toms.sorted"
 #        toms_result = open(self.workdir + "all_toms_sorted","w")
-        print >> sys.stderr, "%s: sorting objects" % time.ctime()
+        print "%s: sorting objects" % time.ctime()
 #        toms_status = subprocess.call(tomsargs,0,"sort",stdout=toms_result,shell=True)                                 
         toms_status = os.system(tomsargs + " > " + self.workdir + "all_toms_sorted")
-        print >> sys.stderr, "%s: object sort returned %d" % (time.ctime(),toms_status)
+        print "%s: object sort returned %d" % (time.ctime(),toms_status)
         if self.clean:
             os.system('rm *.toms.sorted')
         
         pagesargs = "cat *.pages"
 #        pages_result = open(self.workdir + "all_pages","w")
-        print >> sys.stderr, "%s: joining pages" % time.ctime()
+        print "%s: joining pages" % time.ctime()
 #        pages_status = subprocess.call(pagesargs,0,"cat",stdout=pages_result,shell=True)
         pages_status = os.system(pagesargs + " > " + self.workdir + "all_pages")
-        print >> sys.stderr, "%s: word join returned %d" % (time.ctime(), pages_status)
+        print "%s: word join returned %d" % (time.ctime(), pages_status)
         
         ## Generate sorted file for word frequencies    
         counts_files = [i for i in os.listdir(self.workdir) if i.endswith('.freq_counts')]
         r_r_obj = set([re.sub('.+\.(\w+)\.freq_counts\Z', '\\1', i) for i in counts_files])
         for text_obj in r_r_obj:
             wordsargs = "sort -m " + sort_by_word + " " + sort_by_id + " " + "*.%s.freq_counts" % text_obj
-            print >> sys.stderr, "%s: sorting words frequencies" % time.ctime()
+            print "%s: sorting words frequencies" % time.ctime()
             words_status = os.system(wordsargs + " > " + self.workdir + "%s.counts" % text_obj)
-            print >> sys.stderr, "%s: %s word count frequencies sort returned %d" % (time.ctime(), text_obj, words_status)
+            print "%s: %s word count frequencies sort returned %d" % (time.ctime(), text_obj, words_status)
 
     def analyze(self):
         print "\n### Create inverted index ###"
@@ -388,11 +390,11 @@ class Loader(object):
         os.system("mv dbspecs4.h ../src/dbspecs4.h")
         
         if Post_Filters:
-            print >> sys.stderr, 'Running the following post-processing filters:'
+            print 'Running the following post-processing filters:'
             for f in Post_Filters:
-                print >> sys.stderr, f.__name__ + '...',
+                print f.__name__ + '...',
                 f(self)
-                print >> sys.stderr, 'done.'
+                print 'done.'
         
         db_locals = open(self.destination + "/db.locals.py","w") 
 
@@ -404,7 +406,7 @@ class Loader(object):
         for k,v in extra_locals.items():
             print >> db_locals, "%s = %s" % (k,repr(v))
 
-        print >> sys.stderr, "wrote metadata info to %s." % (self.destination + "/db.locals.py")
+        print "wrote metadata info to %s." % (self.destination + "/db.locals.py")
            
                 
 # a quick utility function

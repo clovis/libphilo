@@ -19,7 +19,7 @@ parser = OptionParser(usage=usage)
 parser.add_option("-q", "--quiet", action="store_true", dest="quiet", help="suppress all output")
 parser.add_option("-c", "--cores", type="int", default="2", dest="workers", help="define the number of cores for parsing")
 parser.add_option("-t", "--templates", default=False, dest="template_dir", help="define the path for the templates you want to use")
-parser.add_option("-d", "--debug", default=False, dest="debug", help="add debugging to your load")
+parser.add_option("-d", "--debug", action="store_true", default=False, dest="debug", help="add debugging to your load")
 
 
 ##########################

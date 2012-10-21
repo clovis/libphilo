@@ -6,7 +6,6 @@ from optparse import OptionParser
 from glob import glob
 from philologic.Loader import Loader
 from philologic.LoadFilters import *
-#from ExtraFilters import *
 from philologic.Parser import Parser
 from philologic.ParserHelpers import *
 
@@ -33,7 +32,7 @@ database_root = None
 # Please follow the instructions in INSTALLING before use.
 
 # Set the URL path to the same root directory for your philologic install.
-url_root = None
+url_root = None 
 # http://localhost/philologic is appropriate if you don't have a DNS hostname.
 
 if database_root is None or url_root is None:
@@ -188,6 +187,7 @@ l.analyze()
 l.make_tables(tables, *r_r_obj)
 l.finish(**extra_locals)
 
-sys.stdout = verbose
+if quiet:
+    sys.stdout = verbose
 print "\nDone indexing."
 print "Your database is viewable at " + db_url + "\n"

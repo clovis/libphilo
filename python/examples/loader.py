@@ -13,17 +13,19 @@ from philologic.ParserHelpers import *
 ##########################
 
 # Set the filesytem path to the root web directory for your PhiloLogic install.
-database_root = None 
+# database_root = ""
+database_root = ""
 # /var/www/philologic/ is conventional for linux,
 # /Library/WebServer/Documents/philologic for Mac OS.
 # Please follow the instructions in INSTALLING before use.
 
 # Set the URL path to the same root directory for your philologic install.
-url_root = None 
+# url_root = ""
+url_root = "" 
 # http://localhost/philologic is appropriate if you don't have a DNS hostname.
 
 if database_root is None or url_root is None:
-    print >> sys.stderr, "Please configure the loader script before use."
+    print >> sys.stderr, "Please configure the loader script before use.  See INSTALLING in your PhiloLogic distribution."
     exit()
 
 install_dir = database_root + "_system_dir/_install_dir/"
@@ -41,7 +43,7 @@ dbname = sys.argv[1]
 files = sys.argv[2:]
 
 # Define how many cores you want to use
-workers = 4
+workers = 6
 
 # Define filters as a list of functions to call, either those in Loader or outside
 filters = [make_word_counts, generate_words_sorted,make_token_counts,sorted_toms, prev_next_obj, word_frequencies_per_obj,generate_pages, make_max_id]
@@ -53,7 +55,7 @@ tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'toms.db', 'page
 ## Set-up database load ###
 ###########################
 
-Philo_Types = ["doc","div","para"] # every object type you'll be indexing.  pages don't count, yet.
+Philo_Types = ["doc","div","para","word"] # every object type you'll be indexing.  pages don't count, yet.
 
 XPaths = {  ".":"doc", # Always fire a doc against the document root.
             ".//front":"div",
@@ -63,6 +65,7 @@ XPaths = {  ".":"doc", # Always fire a doc against the document root.
             ".//div3":"div",
             ".//p":"para",
             ".//sp":"para",
+            ".//w":"word",
             #"stage":"para"
             ".//pb":"page",
          } 
@@ -79,6 +82,9 @@ Metadata_XPaths = { # metadata per type.  '.' is in this case the base element f
                       (AttributeExtractor,".@xml:id","id")],
              "para": [(ContentExtractor,"./speaker", "who"),
                       (ContentExtractor,"./head","head")],
+             "word": [(AttributeExtractor,".@lemma","lemma"),
+#                      (ContentExtractor,".","token"),
+                      (AttributeExtractor,".@ana","ana")],
              "page": [(AttributeExtractor,".@n","n"),
                       (AttributeExtractor,".@src","img")],
            }
@@ -97,7 +103,7 @@ token_regex = word_regex + "|" + punct_regex
 #############################
 
 os.environ["LC_ALL"] = "C" # Exceedingly important to get uniform sort order.
-os.environ["PYTHONIOENCODING"] = "utf-8" 
+os.environ["PYTHONIOENCODING"] = "utf-8"
     
 template_destination = database_root + dbname
 data_destination = template_destination + "/data"
@@ -123,12 +129,26 @@ print "copied templates to %s" % template_destination
 ## Load the files ##
 ####################
 
-l = Loader(workers, filters=filters, tables=tables, clean=True)
-l.setup_dir(data_destination,files)
-l.parse_files(XPaths,Metadata_XPaths,token_regex,non_nesting_tags,self_closing_tags,pseudo_empty_tags)
+#l = Loader(workers, filters=filters, tables=tables, clean=True)
+l = Loader(data_destination,
+           Philo_Types,
+           XPaths,
+           Metadata_XPaths,
+           filters, 
+           token_regex,
+           non_nesting_tags,
+           self_closing_tags,
+           pseudo_empty_tags,
+           debug=True)
+l.add_files(files)
+#l.setup_dir(data_destination,files)
+#l.parse_files(XPaths,Metadata_XPaths,token_regex,non_nesting_tags,self_closing_tags,pseudo_empty_tags)
+filenames = l.list_files()
+load_metadata = [{"filename":f} for f in sorted(filenames,reverse=True)]
+l.parse_files(workers,load_metadata)
 l.merge_objects()
 l.analyze()
 l.make_tables()
-l.finish(Philo_Types, Metadata_XPaths,db_url=db_url)
+l.finish(db_url=db_url)
 print >> sys.stderr, "done indexing."
 print >> sys.stderr, "db viewable at " + db_url + "/dispatcher.py/form"

@@ -55,7 +55,7 @@ TEI_MetadataXPaths = { "doc" : [(ContentExtractor,"./teiHeader/fileDesc/titleStm
 Default_Token_Regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)|([\.;:?!])"
 
 class Parser:
-    def __init__(self,known_metadata,docid,format=ARTFLVector,parallel=ARTFLParallels,xpaths=None,metadata_xpaths = None,token_regex=Default_Token_Regex,non_nesting_tags = [],self_closing_tags = [],pseudo_empty_tags = [],output=None):
+    def __init__(self,output,docid,types=ARTFLVector,parallel=ARTFLParallels,xpaths=None,metadata_xpaths = None,token_regex=Default_Token_Regex,non_nesting_tags = [],self_closing_tags = [],pseudo_empty_tags = [],**known_metadata):
         self.known_metadata = known_metadata
         self.docid = docid
         self.i = shlaxtree.ShlaxIngestor(target=self)
@@ -64,7 +64,7 @@ class Parser:
         self.stack = []
         self.map = xpaths or TEI_XPaths
         self.metadata_paths = metadata_xpaths or TEI_MetadataXPaths
-        self.v = OHCOVector.CompoundStack(format,parallel,docid,output)
+        self.v = OHCOVector.CompoundStack(types,parallel,docid,output)
         # OHCOVector should take an output file handle.
         self.extractors = []
         self.file_position = 0
@@ -151,9 +151,15 @@ class Parser:
                 tokens = re.finditer(self.token_regex,content) # should put in a nicer tokenizer.
                 for t in tokens:
                     if t.group(1):
-                        # This will implicitly push a sentence if we aren't in one already.
-                        self.v.push("word",t.group(1).lower(),offset + t.start(1)) 
-                        self.v.pull("word",offset + t.end(1)) 
+                        # This technique is kind of a hack.  
+                        # Would be more flexible to simply suppress tokenization in tagged word objects,
+                        # then REQUIRE a filter to index token value.                        
+                        if "word" in self.v and self.v["word"].name == "w":
+                            self.v["word"].name = t.group(1).lower()
+                        else:
+                            # This will implicitly push a sentence if we aren't in one already.
+                            self.v.push("word",t.group(1).lower(),offset + t.start(1)) 
+                            self.v.pull("word",offset + t.end(1)) 
                     elif t.group(2): 
                         # a sentence should already be defined most of the time.
                         if "sent" not in self.v:
@@ -218,7 +224,8 @@ if __name__ == "__main__":
     for docid, filename in enumerate(files,1):
         f = open(filename)
         print >> sys.stderr, "%d: parsing %s" % (docid,filename)
-        p = Parser({"filename":filename},docid, non_nesting_tags = ["div1","div2","div3","p"],self_closing_tags = ["br","lb","ab"],output=sys.stdout)
+        p = Parser(output=sys.stdout,docid=docid,filename=filename)
+#        p = Parser({"filename":filename},docid, non_nesting_tags = ["div1","div2","div3","p"],self_closing_tags = ["br","lb","ab"],output=sys.stdout)
 #        p = Parser({"filename":filename},docid, non_nesting_tags = [],output=sys.stdout)
         p.parse(f)
         #print >> sys.stderr, "%s\n%d total tokens in %d unique types." % (spec,sum(counts.values()),len(counts.keys()))

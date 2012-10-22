@@ -57,7 +57,8 @@ def prev_next_obj(loader_obj, text, depth=5):
         print >> output_file, record_dict[obj]
     output_file.close()
     os.remove(text['sortedtoms'])
-    tomscommand = "cat %s | egrep \"^doc|^div|^para\" | sort %s > %s" % (temp_file,loader_obj.sort_by_id,text["sortedtoms"])
+    type_pattern = "|".join("^%s" % t for t in loader_obj.types)
+    tomscommand = "cat %s | egrep \"%s\" | sort %s > %s" % (temp_file,type_pattern,loader_obj.sort_by_id,text["sortedtoms"])
     os.system(tomscommand)
     os.remove(temp_file)
 
@@ -66,7 +67,8 @@ def generate_words_sorted(loader_obj, text):
     os.system(wordcommand)        
     
 def sorted_toms(loader_obj, text):
-    tomscommand = "cat %s | egrep \"^doc|^div|^para\" | sort %s > %s" % (text["raw"],loader_obj.sort_by_id,text["sortedtoms"])
+    type_pattern = "|".join("^%s" % t for t in loader_obj.types)
+    tomscommand = "cat %s | egrep \"%s\" | sort %s > %s" % (text["raw"],type_pattern,loader_obj.sort_by_id,text["sortedtoms"])
     os.system(tomscommand)
     
 def generate_pages(loader_obj, text):

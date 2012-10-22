@@ -31,23 +31,24 @@ default_filters = [make_word_counts,
                    make_token_counts,
                    sorted_toms, 
                    prev_next_obj, 
-                   word_frequencies_per_obj,
+                   word_frequencies_per_obj('doc'),
                    generate_pages, 
                    make_max_id]
 
-default_post_filters = [index_metadata_fields]
+default_post_filters = [word_frequencies, metadata_frequencies]
 
 ## While these tables are loaded by default, you can override that default, although be aware
 ## that you will only have reduced functionality if you do. It is strongly recommended that you 
 ## at least keep the 'toms' table from toms.db.
-default_tables = [('all_toms_sorted', 'toms.db', 'toms'), ('all_pages', 'toms.db', 'pages'),
-                  ('doc_word_counts_sorted', 'toms.db', 'doc_word_counts')]
+default_tables = ['toms', 'pages', 'ranked_relevance']
 
 default_token_regex = r"([^ \.,;:?!\"\n\r\t\(\)]+)|([\.;:?!])"
 
 class Loader(object):
 
-    def __init__(self,destination,types,xpaths, metadata_xpaths,filters=default_filters,token_regex=default_token_regex,non_nesting_tags=[],self_closing_tags=[],pseudo_empty_tags=[],debug=False):
+    def __init__(self,destination,types,xpaths, metadata_xpaths,filters=default_filters,
+                 token_regex=default_token_regex,non_nesting_tags=[],self_closing_tags=[],
+                 pseudo_empty_tags=[],debug=False):
         self.omax = [1,1,1,1,1,1,1,1,1]
         self.debug = debug
         self.parse_pool = None 
@@ -105,7 +106,7 @@ class Loader(object):
         
     def add_files(self,files):
         for f in files:
-            os.system("cp %s %s" % (f,self.textdir+f))
+            os.system("cp %s %s" % (f,self.textdir))
             
     def status(self):
         pass
@@ -157,8 +158,8 @@ class Loader(object):
                 # we want to have up to max_workers processes going at once.
                 text = self.filequeue.pop(0) # parent and child will both know the relevant filenames
                 metadata = data_dicts.pop(0)                
-                print >> sys.stderr, text
-                print >> sys.stderr, metadata
+                #print >> sys.stderr, text
+                #print >> sys.stderr, metadata
                 pid = os.fork() # fork returns 0 to the child, the id of the child to the parent.  
                 # so pid is true in parent, false in child.
     
@@ -226,34 +227,37 @@ class Loader(object):
         print "\n### Merge parser output ###"
         wordsargs = "sort -m " + sort_by_word + " " + sort_by_id + " " + "*.words.sorted"
 #        words_result = open(self.workdir + "all_words_sorted","w")
-        print >> sys.stderr, "%s: sorting words" % time.ctime()
+        print "%s: sorting words" % time.ctime()
 #        words_status = subprocess.call(wordargs,0,"sort",stdout=words_result,shell=True)
         words_status = os.system(wordsargs + " > " + self.workdir + "all_words_sorted")
-        print >> sys.stderr, "%s: word sort returned %d" % (time.ctime(),words_status)
+        print "%s: word sort returned %d" % (time.ctime(),words_status)
         if self.clean:
             os.system('rm *.words.sorted')
 
         tomsargs = "sort -m " + sort_by_id + " " + "*.toms.sorted"
 #        toms_result = open(self.workdir + "all_toms_sorted","w")
-        print >> sys.stderr, "%s: sorting objects" % time.ctime()
+        print "%s: sorting objects" % time.ctime()
 #        toms_status = subprocess.call(tomsargs,0,"sort",stdout=toms_result,shell=True)                                 
         toms_status = os.system(tomsargs + " > " + self.workdir + "all_toms_sorted")
-        print >> sys.stderr, "%s: object sort returned %d" % (time.ctime(),toms_status)
+        print "%s: object sort returned %d" % (time.ctime(),toms_status)
         if self.clean:
             os.system('rm *.toms.sorted')
         
         pagesargs = "cat *.pages"
 #        pages_result = open(self.workdir + "all_pages","w")
-        print >> sys.stderr, "%s: joining pages" % time.ctime()
+        print "%s: joining pages" % time.ctime()
 #        pages_status = subprocess.call(pagesargs,0,"cat",stdout=pages_result,shell=True)
         pages_status = os.system(pagesargs + " > " + self.workdir + "all_pages")
-        print >> sys.stderr, "%s: word join returned %d" % (time.ctime(), pages_status)
+        print "%s: word join returned %d" % (time.ctime(), pages_status)
         
-        ## Generate sorted file for word frequencies
-        wordsargs = "sort -m " + sort_by_word + " " + sort_by_id + " " + "*.doc.sorted"
-        print >> sys.stderr, "%s: sorting words frequencies" % time.ctime()
-        words_status = os.system(wordsargs + " > " + self.workdir + "doc_word_counts_sorted")
-        print >> sys.stderr, "%s: doc word count frequencies sort returned %d" % (time.ctime(),words_status)
+        ## Generate sorted file for word frequencies    
+        counts_files = [i for i in os.listdir(self.workdir) if i.endswith('.freq_counts')]
+        r_r_obj = set([re.sub('.+\.(\w+)\.freq_counts\Z', '\\1', i) for i in counts_files])
+        for text_obj in r_r_obj:
+            wordsargs = "sort -m " + sort_by_word + " " + sort_by_id + " " + "*.%s.freq_counts" % text_obj
+            print "%s: sorting words frequencies" % time.ctime()
+            words_status = os.system(wordsargs + " > " + self.workdir + "%s.counts" % text_obj)
+            print "%s: %s word count frequencies sort returned %d" % (time.ctime(), text_obj, words_status)
 
     def analyze(self):
         print "\n### Create inverted index ###"
@@ -312,107 +316,85 @@ class Loader(object):
         if self.clean:
             os.system('rm all_words_sorted')
 
-    def make_tables(self,tables=default_tables):
+    def make_tables(self, tables, *text_objects, **extra_tables):
         print '\n### SQL Load ###'
         print "Loading in the following tables:"
-        for file_in, db, table in tables:
-            print "%s table in %s database file..." % (table, db),
-            file_in = self.workdir + "/%s" % file_in
-            self.dbh = sqlite3.connect("../%s" % db)
+        for table in tables:            
+            self.dbh = sqlite3.connect("../toms.db")
             self.dbh.text_factory = str
             self.dbh.row_factory = sqlite3.Row
-            self.make_sql_table(file_in, table, obj_type='doc')
-            print 'done.'
-            if self.clean:
-                os.system('rm %s' % file_in)
+            if table == 'pages':
+                file_in = self.workdir + '/all_pages'
+                self.make_sql_table(table, file_in, depth=9)
+            elif table == 'toms':
+                file_in = self.workdir + '/all_toms_sorted'
+                indices = ['philo_type', 'philo_id'] + self.metadata_fields
+                self.make_sql_table(table, file_in, indices=indices)
+            elif table == "ranked_relevance":
+                files_in = [self.workdir + '%s.counts' % obj for obj in text_objects]
+                for file_in in files_in:
+                    self.make_sql_table(table, file_in, indices=['philo_name', 'philo_id'])
+        if extra_tables:
+            for fn, table in extra_tables.items():
+                fn(self)
                 
-    def make_sql_table(self, file_in, table, obj_type='doc'):
-        field_list = ['philo_type', 'philo_name', 'philo_id', 'philo_seq']
-        depth = object_types.index(obj_type) + 1 ## this is for philo_id slices
-        if table == 'pages':
-            depth = 9
+    def make_sql_table(self, table, file_in, indices=[], depth=7):
         conn = self.dbh
         c = conn.cursor()
-        
-        if table.endswith('word_counts'):
-            field_list = field_list + ['bytes', '%s_token_count' % obj_type]
-        
-        ## Create table
-        columns = ','.join(field_list)
+        columns = 'philo_type,philo_name,philo_id,philo_seq'
         query = 'create table if not exists %s (%s)' % (table, columns)
         c.execute(query)
-        if table == 'toms':
-            c.execute('create index %s_type_index on %s (philo_type)' % (table,table))
-            c.execute('create index %s_id_index on %s (philo_id)' % (table,table))
-        else:
-            c.execute('create index %s_philo_name_index on %s (philo_name)' % (table,table))
-            c.execute('create index %s_philo_id_index on %s (philo_id)' % (table,table))
-        conn.commit()
+        print "%s table in toms.db database file..." % table,
         
         sequence = 0
         for line in open(file_in):
-            (philo_type,philo_name,id,attrib) = line.split("\t",3)
+            philo_type, philo_name, id, attrib = line.split("\t",3)
             fields = id.split(" ",8)
             if len(fields) == 9:
                 row = {}
-                if table == "toms":
-                    philo_id = " ".join(fields[:7])
-                elif table == "pages":
-                    philo_id = " ".join(fields)
-                elif table.endswith('word_counts'):
-                    philo_id = ' '.join(id.split()[:depth])
-                    philo_id = philo_id + ' ' + ' '.join('0' for i in range(7 - depth))
+                philo_id = " ".join(fields[:depth])
                 row["philo_type"] = philo_type
                 row["philo_name"] = philo_name
                 row["philo_id"] = philo_id
                 row["philo_seq"] = sequence
-                attrib = eval(attrib)
-                for k in attrib:
-                    if k not in field_list:
-                        c.execute("ALTER TABLE %s ADD COLUMN %s;" % (table,k))
-                        field_list.append(k)
-                    row[k] = attrib[k]
-                row_key = []
-                row_value = []
-                for k,v in row.items():
-                    row_key.append(k)
-                    row_value.append(v)
-                key_string = "(%s)" % ",".join(x for x in row_key)
-                insert = "INSERT INTO %s %s values (%s);" % (table, key_string,",".join("?" for i in row_value))
-                c.execute(insert,row_value)
+                row.update(eval(attrib))
+                columns = "(%s)" % ",".join([i for i in row])
+                insert = "INSERT INTO %s %s values (%s);" % (table, columns,",".join(["?" for i in row]))
+                values = [v for k,v in row.items()]
+                try:
+                    c.execute(insert,values)
+                except sqlite3.OperationalError:
+                    c.execute("PRAGMA table_info(%s)" % table)
+                    column_list = [i[1] for i in c.fetchall()]
+                    for column in row:
+                        if column not in column_list:
+                            c.execute("ALTER TABLE %s ADD COLUMN %s;" % (table,column))
+                    c.execute(insert,values)
                 sequence += 1       
         conn.commit()
+        
+        for index in indices:
+            try:
+                c.execute('create index if not exists %s_%s_index on %s (%s)' % (table,index,table,index))
+            except sqlite3.OperationalError:
+                pass
+        conn.commit()
+        print 'done.'
+        
+        if self.clean:
+            os.system('rm %s' % file_in)
 
     def finish(self, Post_Filters=default_post_filters, **extra_locals):
         print "\n### Finishing up ###"
         os.mkdir(self.destination + "/src/")
         os.system("mv dbspecs4.h ../src/dbspecs4.h")
         
-        ## Create a new all_frequencies file in the frequencies folder
-        frequencies = self.destination + '/frequencies'
-        os.system('mkdir %s' % frequencies)
-        output = open(frequencies + "/word_frequencies", "w")
-        for line in open(self.destination + '/WORK/all_frequencies'):
-            count, word = tuple(line.split())
-            print >> output, word + '\t' + count
-        output.close()
-        
-        ## Create flat files with metadata frequencies
-        ## To be replaced by sqlite tables later on
-        conn = sqlite3.connect(self.destination + '/toms.db')
-        c = conn.cursor()
-        for field in self.metadata_fields:
-            query = 'select %s, count(*) from toms group by %s order by count(%s) desc' % (field, field, field)
-            try:
-                c.execute(query)
-                output = open(frequencies + "/%s_frequencies" % field, "w")
-                for result in c.fetchall():
-                    if result[0] != None:
-                        print >> output, result[0].encode('utf-8') + '\t' + str(result[1])
-                output.close()
-            except sqlite3.OperationalError:
-                pass
-        conn.close()
+        if Post_Filters:
+            print 'Running the following post-processing filters:'
+            for f in Post_Filters:
+                print f.__name__ + '...',
+                f(self)
+                print 'done.'
         
         db_locals = open(self.destination + "/db.locals.py","w") 
 
@@ -424,14 +406,8 @@ class Loader(object):
         for k,v in extra_locals.items():
             print >> db_locals, "%s = %s" % (k,repr(v))
 
-        print >> sys.stderr, "wrote metadata info to %s." % (self.destination + "/db.locals.py")
-        
-        if Post_Filters:
-            print >> sys.stderr, 'Running the following post-processing filters:'
-            for f in Post_Filters:
-                print >> sys.stderr, f.__name__ + '...',
-                f(self)
-                print >> sys.stderr, 'done.'            
+        print "wrote metadata info to %s." % (self.destination + "/db.locals.py")
+           
                 
 # a quick utility function
 def load(path,files,filters=default_filters,xpaths=None,metadata_xpaths=None,workers=4):

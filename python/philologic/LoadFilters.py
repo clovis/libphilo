@@ -132,41 +132,110 @@ def count_tokens(record_list, depth, output_file):
             new_record.attrib[token_count] = record_dict[philo_id]
         print >> output_file, new_record
 
-def word_frequencies_per_obj(loader_obj, text, depth=1):
-    object_types = ['doc', 'div1', 'div2', 'div3', 'para', 'sent', 'word'][:depth]
-    files_path = loader_obj.destination + '/WORK/'
-    try:
-        os.mkdir(files_path)
-    except OSError:
-        ## Path was already created                                                                                                                                       
-        pass
-    for d, obj in enumerate(object_types):
-        file = text['name'] + '.%s.sorted' % obj
-        output = open(files_path + file, 'w')
-        d = d + 1
-        old_philo_id = []
-        records = {}
-        for line in open(text['words']):
-            type, word, id, attrib = line.split('\t')
-            attrib = eval(attrib)
-            philo_id = id.split()
-            record = Record(type, word, philo_id)
-            count_key = obj + '_token_count'
-            byte = attrib['byte_start']
-            del attrib['byte_start']
-            record.attrib = {count_key: attrib[count_key]}
-            if philo_id[:d] != old_philo_id[:d]:
-                if records:
-                    for w in records:
-                        print >> output, records[w]
-                        records = {}
-            if word not in records:
-                record.attrib['bytes'] = []
-                record.attrib['bytes']= str(byte)
-                records[word] = record
-            else:
-                records[word].attrib['bytes'] += ' ' + str(byte)
-            old_philo_id = philo_id
-        for w in records:
-            print >> output, records[w]
-        output.close()
+def word_frequencies_per_obj(*types):
+    object_types = {'doc': 1, 'div1': 2, 'div2': 3, 'div3': 4, 'para': 5,
+                    'sent': 6, 'word': 7}
+    obj_types = {}
+    if types:
+        for o in object_types:
+            if o in types:
+                obj_types[o] = object_types[o]
+    else:
+        obj_types['doc'] = 1
+    
+    def inner_word_frequencies_per_obj(loader_obj,text):
+        files_path = loader_obj.destination + '/WORK/'
+        try:
+            os.mkdir(files_path)
+        except OSError:
+            ## Path was already created                                                                                                                                       
+            pass
+        for obj, d in obj_types.iteritems():
+            file = text['name'] + '.%s.freq_counts' % obj
+            output = open(files_path + file, 'w')
+            old_philo_id = []
+            old_word = ''
+            records = {}
+            for line in open(text['words']):
+                type, word, id, attrib = line.split('\t')
+                attrib = eval(attrib)
+                ## Dismiss all irrelevant fields while making sure we still have 9 fields in the end
+                philo_id = id.split()[:d] + [0 for i in range(7-d)] + [0,0]
+                record = Record(type, word, philo_id)
+                count_key = obj + '_token_count'
+                byte = attrib['byte_start']
+                del attrib['byte_start']
+                record.attrib = {'token_count': attrib[count_key]}
+                if philo_id[:d] != old_philo_id[:d] or word != old_word:
+                    if records and old_word:
+                        for w in records:
+                            print >> output, records[w]
+                            records = {}
+                if word not in records:
+                    record.attrib['bytes'] = []
+                    record.attrib['bytes']= str(byte)
+                    records[word] = record
+                else:
+                    records[word].attrib['bytes'] += ' ' + str(byte)
+                old_philo_id = philo_id
+                old_word = word
+            for w in records:
+                print >> output, records[w]
+            output.close()
+    
+    return inner_word_frequencies_per_obj
+
+
+def evaluate_word(word, word_pattern):
+    word = word.decode('utf-8', 'ignore')
+    if word_pattern.search(word) and len(word) > 1:
+        return True
+    else:
+        return False
+
+def store_in_plain_text(*types):
+    object_types = {'doc': 1, 'div1': 2, 'div2': 3, 'div3': 4, 'para': 5,
+                    'sent': 6, 'word': 7}
+    obj_to_track = []
+    for obj in types:
+        if obj not in object_types:
+            print >> sys.stderr, "%s object type not supported",
+            print >> sys.stderr, "only 'doc', 'div1', 'div2' and 'div3' are supported"
+        obj_to_track.append(object_types[obj])
+    
+    def inner_store_in_plain_text(loader_obj, text):
+        files_path = loader_obj.destination + '/plain_text_objects/'
+        word_pattern = re.compile('[^\W\d_]', re.UNICODE)
+        try:
+            os.mkdir(files_path)
+        except OSError:
+            ## Path was already created                                                                                                                                       
+            pass
+        for obj_depth in obj_to_track:
+            old_philo_id = []
+            philo_id = []
+            words = []
+            for line in open(text['raw']):
+                type, word, id, attrib = line.split('\t')
+                if type != 'word':
+                    continue
+                ## Check if we're in the top level object
+                if evaluate_word(word, word_pattern):
+                    philo_id = id.split()[:obj_depth]
+                    if not old_philo_id:
+                        old_philo_id = philo_id
+                    if philo_id != old_philo_id: 
+                        filename = files_path + '_'.join(old_philo_id)
+                        output = open(filename, 'w')
+                        print >> output, ' '.join(words)
+                        output.close()
+                        words = []
+                        old_philo_id = philo_id
+                    words.append(word)
+            if words:
+                filename = files_path + '_'.join(philo_id)
+                output = open(filename, 'w')
+                print >> output, ' '.join(words)
+                output.close()
+                
+    return inner_store_in_plain_text

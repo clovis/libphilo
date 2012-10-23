@@ -4,5 +4,5 @@ setup(name = "philologic",
       version = "4.0prototype",
       author = "Richard Whaling",
       author_email = "rwhaling@uchiacgo.edu",
-      packages = ["philologic"],
+      packages = ["philologic", "philologic.utils"],
      )

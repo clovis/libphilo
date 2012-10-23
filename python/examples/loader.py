@@ -16,6 +16,7 @@ from philologic.ParserHelpers import *
 usage = "usage: %prog [options] database_name files"
 parser = OptionParser(usage=usage)
 parser.add_option("-q", "--quiet", action="store_true", dest="quiet", help="suppress all output")
+parser.add_option("-l", "--log", default=False, dest="log", help="enable logging and specify file path")
 parser.add_option("-c", "--cores", type="int", default="2", dest="workers", help="define the number of cores for parsing")
 parser.add_option("-t", "--templates", default=False, dest="template_dir", help="define the path for the templates you want to use")
 parser.add_option("-d", "--debug", action="store_true", default=False, dest="debug", help="add debugging to your load")
@@ -62,7 +63,10 @@ except IndexError:
     sys.exit()
 workers = options.workers or 2
 template_dir = options.template_dir or template_dir
-quiet = options.quiet or False
+console_output = True
+if options.quiet:
+    console_output = False
+log = options.log or False
 debug = options.debug or False
 
 # Define text objects for ranked relevancy: by default it's ['doc']. Disable by supplying empty list
@@ -156,18 +160,12 @@ except OSError:
         sys.exit()
 os.system("cp -r %s* %s" % (template_dir,template_destination))
 os.system("cp %s.htaccess %s" % (template_dir,template_destination))
-if not quiet:
-    print "copied templates to %s" % template_destination
 
 
 ####################
 ## Load the files ##
 ####################
 
-print "\nIndexing begins... \n"
-if quiet:
-    verbose = sys.stdout
-    sys.stdout = open(os.devnull, 'w')
 l = Loader(data_destination,
            Philo_Types,
            XPaths,
@@ -187,7 +185,5 @@ l.analyze()
 l.make_tables(tables, *r_r_obj)
 l.finish(**extra_locals)
 
-if quiet:
-    sys.stdout = verbose
 print "\nDone indexing."
 print "Your database is viewable at " + db_url + "\n"

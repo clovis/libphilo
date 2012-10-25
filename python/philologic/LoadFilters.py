@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import re
 import cPickle
 from philologic.OHCOVector import Record
 from ast import literal_eval as eval

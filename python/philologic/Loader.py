@@ -13,9 +13,8 @@ from ast import literal_eval as eval
 from philologic import OHCOVector, Parser
 from philologic.LoadFilters import *
 from philologic.PostFilters import *
+from philologic.utils import OutputHandler
 
-## Disable output buffering
-sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 
 sort_by_word = "-k 2,2"
 sort_by_id = "-k 3,3n -k 4,4n -k 5,5n -k 6,6n -k 7,7n -k 8,8n -k 9,9n"
@@ -48,7 +47,7 @@ class Loader(object):
 
     def __init__(self,destination,types,xpaths, metadata_xpaths,filters=default_filters,
                  token_regex=default_token_regex,non_nesting_tags=[],self_closing_tags=[],
-                 pseudo_empty_tags=[],debug=False):
+                 pseudo_empty_tags=[],console_output=True, log=False, debug=False):
         self.omax = [1,1,1,1,1,1,1,1,1]
         self.debug = debug
         self.parse_pool = None 
@@ -95,6 +94,8 @@ class Loader(object):
                     self.metadata_hierarchy[-1].append(param)
                 if param not in self.metadata_types:
                     self.metadata_types[param] = t
+        
+        sys.stdout = OutputHandler(console=console_output, log=log)
 
     def setup_dir(self,path):
         os.mkdir(path)

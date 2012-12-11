@@ -25,7 +25,8 @@ index_cutoff = 10 # index frequency cutoff.  Don't. alter.
 
 ## If you are going to change the order of these filters (which is not recommended)
 ## please consult the documentation for each of these filters in LoadFilters.py
-default_filters = [make_word_counts, 
+default_filters = [
+                   make_word_counts, 
                    generate_words_sorted,
                    make_token_counts,
                    sorted_toms, 

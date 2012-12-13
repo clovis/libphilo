@@ -8,7 +8,7 @@ from ast import literal_eval as eval
 
 
 ## Default filters
-def make_word_counts(loader_obj, text, depth=5):
+def make_word_counts(loader_obj, text, depth=4):
     object_types = ['doc', 'div1', 'div2', 'div3', 'para', 'sent', 'word']
     counts = [0 for i in range(depth)]
     temp_file = text['raw'] + '.tmp'
@@ -29,7 +29,7 @@ def make_word_counts(loader_obj, text, depth=5):
     os.remove(text['raw'])
     os.rename(temp_file, text['raw'])
     
-def prev_next_obj(loader_obj, text, depth=5):
+def prev_next_obj(loader_obj, text, depth=4):
     object_types = ['doc', 'div1', 'div2', 'div3', 'para', 'sent', 'word'][:depth]
     record_dict = {}
     temp_file = text['raw'] + '.tmp'
@@ -90,7 +90,7 @@ def make_max_id(loader_obj, text):
     rf.close()
     
 ## Additional Filters
-def make_token_counts(loader_obj, text, depth=5):
+def make_token_counts(loader_obj, text, depth=4):
     old_word = None
     record_list = []
     temp_file = text['words'] + '.tmp'

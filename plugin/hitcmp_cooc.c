@@ -84,7 +84,7 @@ Z32 h_size_cooc ( hitdef *hit_def, N8 level )
  
   Z32 context = h->r_context;
  
-  size = context + level + 2; 
+  size = context + (level + 1)*2 + 1;  
 
   /*
     the hit always contains N indices from the

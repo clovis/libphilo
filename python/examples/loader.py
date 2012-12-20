@@ -102,7 +102,7 @@ plain_text_obj = []
 if plain_text_obj:
     filters.extend([store_in_plain_text(*plaint_text_obj)])
 
-extra_locals = {"db_url": url_root + dbname}
+extra_locals = {"db_url": url_root + "/" + dbname}
 if r_r_obj:
     extra_locals['ranked_relevance_objects'] = r_r_obj
 

@@ -154,6 +154,8 @@ punct_regex = r"([\.;:?!])"
 
 token_regex = word_regex + "|" + punct_regex 
 
+extra_locals['token_regex'] = token_regex
+
 #############################
 # Actual work.  Don't edit. #
 #############################
